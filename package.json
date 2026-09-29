@@ -1,21 +1,43 @@
 {
-  "name": "bot_ts",
-  "version": "1.0.0",
-  "description": "Template de bot Discord em TypeScript. Inclui Licença MIT (ver LICENSE.md).",
-  "main": "index.ts",
-  "scripts": {
-    "start:dev": "ts-node src/index.ts",
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "author": "kevinkvn_",
-  "license": "MIT",
-  "dependencies": {
-    "@types/node": "^20.11.19",
-    "discord-api-types": "^0.37.70",
-    "discord.js": "^14.14.1",
-    "dotenv": "^16.4.4",
-    "fs": "^0.0.1-security",
-    "ts-node": "^10.9.2",
-    "typescript": "^5.3.3"
-  }
+    "name": "bot_ts",
+    "version": "1.0.0",
+    "description": "Template de bot Discord em TypeScript. Inclui Licença MIT (ver LICENSE.md).",
+    "main": "dist/index.js",
+    "engines": {
+        "node": ">=20"
+    },
+    "scripts": {
+        "dev": "tsx watch src/index.ts",
+        "start:dev": "tsx src/index.ts",
+        "build": "tsc -p tsconfig.build.json",
+        "start": "node dist/index.js",
+        "typecheck": "tsc --noEmit",
+        "lint": "eslint .",
+        "format": "prettier --write .",
+        "format:check": "prettier --check .",
+        "test": "vitest run",
+        "test:coverage": "vitest run --coverage",
+        "new:command": "tsx scripts/generate.ts command",
+        "new:event": "tsx scripts/generate.ts event",
+        "new:component": "tsx scripts/generate.ts component"
+    },
+    "author": "kevinkvn_",
+    "license": "MIT",
+    "dependencies": {
+        "discord.js": "^14",
+        "dotenv": "^16",
+        "zod": "^3"
+    },
+    "devDependencies": {
+        "@eslint/js": "^9",
+        "@types/node": "^22",
+        "@vitest/coverage-v8": "^5.0.2",
+        "eslint": "^9",
+        "eslint-config-prettier": "^10",
+        "prettier": "^3",
+        "tsx": "^4",
+        "typescript": "^5",
+        "typescript-eslint": "^8",
+        "vitest": "^5.0.2"
+    }
 }

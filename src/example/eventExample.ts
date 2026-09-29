@@ -1,15 +1,17 @@
+// Exemplo de evento. Para criar um evento real, copie este arquivo para `src/events/<pasta>/`.
+// Arquivos em `src/example/` NÃO são carregados pelo bot.
 import { Events } from "discord.js";
-import { EventType } from "../types";
+import { defineEvent } from "../types";
 
+// `defineEvent` tipa os argumentos de `execute` conforme o evento escolhido;
+// o `client` do bot é sempre o último argumento.
+const eventExample = defineEvent({
+    name: Events.ClientReady, // evento do discord.js (use o enum `Events`)
+    once: true, // true = executa uma única vez
 
-const EventExample: EventType = {
-    name: Events.ClientReady, // Nome do evento
-    once: true, // Se o evento ocorrer uma vez
+    execute: async (readyClient) => {
+        console.log(`O bot ${readyClient.user.tag} foi iniciado!`);
+    },
+});
 
-    // Função de execução do evento, contendo a lógica principal
-    execute: async (client) => {
-        // codigo do evento aqui
-        // exemplo console.log(`O bot ${client.user.tag} foi iniciado!`);
-    }
-
-}
+export default eventExample;
