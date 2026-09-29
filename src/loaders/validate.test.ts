@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { ApplicationCommandOptionType } from "discord.js";
 import { typeCommand } from "../types";
-import { validateCommand, validateEvent } from "./validate";
+import { validateCommand, validateComponent, validateEvent } from "./validate";
 
 const fn = async () => undefined;
 const valid = {
@@ -59,5 +60,59 @@ describe("validateEvent", () => {
         expect(validateEvent({ name: "ready" })).toMatch(/execute/);
         expect(validateEvent({ execute: fn })).toMatch(/name/);
         expect(validateEvent(undefined)).not.toBeNull();
+    });
+});
+
+describe("validateCommand (opções)", () => {
+    const withOptions = (slashCommandOptions: unknown, extra: object = {}) =>
+        validateCommand({ ...valid, slashCommandOptions, ...extra });
+    const opt = (name: string, extra: object = {}) => ({
+        name,
+        description: "d",
+        type: ApplicationCommandOptionType.String,
+        ...extra,
+    });
+
+    it("aceita opções válidas", () => {
+        expect(withOptions([opt("a", { required: true }), opt("b")])).toBeNull();
+    });
+
+    it("rejeita nomes inválidos, duplicados e descrição vazia", () => {
+        expect(withOptions([opt("Nome")])).toMatch(/nome deve ter/);
+        expect(withOptions([opt("a"), opt("a")])).toMatch(/duplicado/);
+        expect(withOptions([opt("a", { description: "" })])).toMatch(/description/);
+    });
+
+    it("exige obrigatórias antes das opcionais", () => {
+        expect(withOptions([opt("a"), opt("b", { required: true })])).toMatch(
+            /antes das opcionais/,
+        );
+    });
+
+    it("não mistura subcomandos com opções comuns", () => {
+        const sub = { name: "s", description: "d", type: ApplicationCommandOptionType.Subcommand };
+        expect(withOptions([sub, opt("a")])).toMatch(/misturar/);
+        expect(withOptions([{ ...sub, options: [opt("Inválido")] }])).toMatch(/s\.Inválido/);
+    });
+
+    it("exige a função autocomplete quando uma opção usa autocomplete", () => {
+        expect(withOptions([opt("a", { autocomplete: true })])).toMatch(/autocomplete/);
+        expect(withOptions([opt("a", { autocomplete: true })], { autocomplete: fn })).toBeNull();
+        expect(
+            withOptions([opt("a", { autocomplete: true, choices: [] })], { autocomplete: fn }),
+        ).toMatch(/choices/);
+    });
+});
+
+describe("validateComponent", () => {
+    it("aceita um componente válido", () => {
+        expect(validateComponent({ id: "kick", kind: "button", execute: fn })).toBeNull();
+    });
+
+    it("rejeita id, kind ou execute inválidos", () => {
+        expect(validateComponent({ id: "a:b", kind: "button", execute: fn })).toMatch(/id/);
+        expect(validateComponent({ id: "a", kind: "outro", execute: fn })).toMatch(/kind/);
+        expect(validateComponent({ id: "a", kind: "modal" })).toMatch(/execute/);
+        expect(validateComponent(null)).not.toBeNull();
     });
 });

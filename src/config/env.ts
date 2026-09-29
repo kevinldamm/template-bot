@@ -23,7 +23,13 @@ const envSchema = z.object({
         snowflake("GUILD_ID").optional(),
     ),
     PREFIX: optionalString
-        .pipe(z.string().min(1).max(5, "PREFIX deve ter no máximo 5 caracteres").optional())
+        .pipe(
+            z
+                .string()
+                .max(5, "PREFIX deve ter no máximo 5 caracteres")
+                .regex(/^\S+$/, "PREFIX não pode conter espaços")
+                .optional(),
+        )
         .transform((value) => value ?? DEFAULT_PREFIX),
 });
 

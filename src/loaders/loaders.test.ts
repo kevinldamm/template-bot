@@ -1,24 +1,25 @@
-import { Collection } from "discord.js";
-import { describe, expect, it, vi } from "vitest";
-import { BotClient, CommandType } from "../types";
+import { describe, expect, it } from "vitest";
+import { fakeClient } from "../test/fakes";
 import loadCommands from "./loadCommands";
+import loadComponents from "./loadComponents";
 import loadEvents from "./loadEvents";
 
-const fakeClient = () =>
-    ({
-        commands: new Collection<string, CommandType>(),
-        slashCommands: new Collection<string, CommandType>(),
-        on: vi.fn(),
-        once: vi.fn(),
-    }) as unknown as BotClient;
+const ALL_COMMANDS = ["clear", "help", "kick", "ping", "serverinfo", "userinfo"];
 
 describe("loaders (comandos e eventos reais do projeto)", () => {
-    it("carrega ping e clear em prefixo e slash", async () => {
+    it("carrega todos os comandos em prefixo e slash", async () => {
         const client = fakeClient();
         await loadCommands(client);
 
-        expect([...client.commands.keys()].sort()).toEqual(["clear", "ping"]);
-        expect([...client.slashCommands.keys()].sort()).toEqual(["clear", "ping"]);
+        expect([...client.commands.keys()].sort()).toEqual(ALL_COMMANDS);
+        expect([...client.slashCommands.keys()].sort()).toEqual(ALL_COMMANDS);
+    });
+
+    it("carrega os componentes", async () => {
+        const client = fakeClient();
+        await loadComponents(client);
+
+        expect([...client.components.keys()].sort()).toEqual(["button:kick", "selectMenu:help"]);
     });
 
     it("registra os eventos do bot", async () => {

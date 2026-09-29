@@ -9,21 +9,17 @@ import createCommand from "../../config/commands/createCommand";
 import { EMBED_COLORS } from "../../config/constants";
 import { logger } from "../../config/logger";
 import { typeCommand } from "../../types";
-import { validateClearAmount } from "../../utils/validation";
 
 const BATCH_SIZE = 100;
 const BULK_DELETE_MAX_AGE_MS = 1000 * 60 * 60 * 24 * 14;
 const PROGRESS_EVERY_N_BATCHES = 5;
+const MAX_CLEAR_AMOUNT = 1000;
 
 const DeleteMessages = createCommand({
     name: "clear",
     description: "Limpar mensagens",
     category: categories.Moderacao,
     type: typeCommand.all,
-    usage: {
-        prefix: "!clear [quantidade]",
-        slash: "/clear [quantidade]",
-    },
     permissions: [PermissionFlagsBits.ManageMessages],
     botPermissions: [
         PermissionFlagsBits.ManageMessages,
@@ -39,17 +35,14 @@ const DeleteMessages = createCommand({
             type: ApplicationCommandOptionType.Integer,
             required: true,
             minValue: 1,
-            maxValue: 1000,
+            maxValue: MAX_CLEAR_AMOUNT,
         },
     ],
 
     execute: async (source, ctx) => {
-        const provided = ctx.isSlash || ctx.args.length > 0;
-        const validation = validateClearAmount(ctx.getInteger("quantidade"), provided);
-        if (!validation.ok) {
-            await ctx.reply({ content: validation.error, ephemeral: true });
-            return;
-        }
+        // Obrigatoriedade e limites (1 a MAX_CLEAR_AMOUNT) já são validados pelas opções.
+        const amount = ctx.getInteger("quantidade");
+        if (amount === null) return;
 
         const channel = source.channel;
         if (!channel || !channel.isTextBased() || channel.isDMBased()) {
@@ -63,12 +56,12 @@ const DeleteMessages = createCommand({
         const embed = new EmbedBuilder()
             .setTitle("🧹 Limpeza de Mensagens")
             .setColor(EMBED_COLORS.info)
-            .setDescription(`Iniciando a limpeza de ${validation.amount} mensagens...`)
+            .setDescription(`Iniciando a limpeza de ${amount} mensagens...`)
             .setFooter({ text: "Por favor, aguarde..." });
 
         const status = await ctx.reply({ embeds: [embed] });
 
-        let remaining = validation.amount;
+        let remaining = amount;
         let deleted = 0;
         let tooOld = 0;
         let batches = 0;

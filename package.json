@@ -15,7 +15,11 @@
         "lint": "eslint .",
         "format": "prettier --write .",
         "format:check": "prettier --check .",
-        "test": "vitest run"
+        "test": "vitest run",
+        "test:coverage": "vitest run --coverage",
+        "new:command": "tsx scripts/generate.ts command",
+        "new:event": "tsx scripts/generate.ts event",
+        "new:component": "tsx scripts/generate.ts component"
     },
     "author": "kevinkvn_",
     "license": "MIT",
@@ -27,6 +31,7 @@
     "devDependencies": {
         "@eslint/js": "^9",
         "@types/node": "^22",
+        "@vitest/coverage-v8": "^5.0.2",
         "eslint": "^9",
         "eslint-config-prettier": "^10",
         "prettier": "^3",

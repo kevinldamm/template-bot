@@ -7,10 +7,6 @@ const pingCommand = createCommand({
     name: "ping",
     description: "Mostra o ping do bot",
     category: categories.Utilitarios,
-    usage: {
-        prefix: "!ping [mensagem]",
-        slash: "/ping [mensagem]",
-    },
     isActive: true,
     cooldown: 3,
     type: typeCommand.all,

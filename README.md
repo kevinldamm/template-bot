@@ -1,6 +1,6 @@
 # 🤖 Template de Bot em TypeScript
 
-Base para criação de bots Discord em TypeScript com [discord.js](https://discord.js.org) v14: comandos que funcionam como **prefixo** (`!ping`) e **slash** (`/ping`) a partir de uma única definição, carregamento automático de comandos/eventos, validação de configuração, cooldowns e checagem de permissões.
+Base para criação de bots Discord em TypeScript com [discord.js](https://discord.js.org) v14: comandos que funcionam como **prefixo** (`!ping`) e **slash** (`/ping`) a partir de uma única definição, botões/menus/modais, `/help` automático, carregamento automático de comandos/eventos/componentes, validação de configuração e de argumentos, cooldowns e checagem de permissões.
 
 ## 📋 Pré-requisitos
 
@@ -31,40 +31,61 @@ Edite o `.env`. As variáveis são validadas ao iniciar: se algo estiver faltand
 
 ## 🚀 Scripts
 
-| Comando             | O que faz                                              |
-| ------------------- | ------------------------------------------------------ |
-| `npm run dev`       | Inicia em modo desenvolvimento com reinício automático |
-| `npm run start:dev` | Inicia em modo desenvolvimento (sem watch)             |
-| `npm run build`     | Compila para `dist/`                                   |
-| `npm start`         | Roda a versão compilada (`dist/index.js`)              |
-| `npm run typecheck` | Verifica os tipos                                      |
-| `npm run lint`      | Roda o ESLint                                          |
-| `npm run format`    | Formata o código com Prettier                          |
-| `npm test`          | Roda os testes (Vitest)                                |
+| Comando                                        | O que faz                                                  |
+| ---------------------------------------------- | ---------------------------------------------------------- |
+| `npm run dev`                                  | Inicia em modo desenvolvimento com reinício automático     |
+| `npm run start:dev`                            | Inicia em modo desenvolvimento (sem watch)                 |
+| `npm run build`                                | Compila para `dist/`                                       |
+| `npm start`                                    | Roda a versão compilada (`dist/index.js`)                  |
+| `npm run new:command -- <pasta>/<nome>`        | Cria um comando a partir do modelo (ex.: `mod/ban`)        |
+| `npm run new:event -- <pasta>/<nome> [Evento]` | Cria um evento (ex.: `guild/entrada GuildCreate`)          |
+| `npm run new:component -- <pasta>/<id> [tipo]` | Cria um handler de `button`, `selectMenu` ou `modal`       |
+| `npm run typecheck`                            | Verifica os tipos                                          |
+| `npm run lint`                                 | Roda o ESLint                                              |
+| `npm run format`                               | Formata o código com Prettier                              |
+| `npm test` / `npm run test:coverage`           | Roda os testes (Vitest), com ou sem relatório de cobertura |
 
-Também há um `Dockerfile` (`docker build -t meu-bot . && docker run --env-file .env meu-bot`).
+Também há um `Dockerfile` (`docker build -t meu-bot . && docker run --env-file .env meu-bot`). O bot trata `SIGINT`/`SIGTERM` (Ctrl+C, `docker stop`) desconectando do Discord antes de sair.
+
+## 🧩 Comandos incluídos
+
+| Comando       | Categoria   | Descrição                                                                                  |
+| ------------- | ----------- | ------------------------------------------------------------------------------------------ |
+| `/help`       | Utilitários | Lista os comandos por categoria (menu de seleção) ou detalha um comando (com autocomplete) |
+| `/ping`       | Utilitários | Mostra a latência do bot                                                                   |
+| `/userinfo`   | Informação  | Dados de um usuário: conta, entrada no servidor, cargos                                    |
+| `/serverinfo` | Informação  | Dados do servidor: dono, membros, canais, cargos, impulsos                                 |
+| `/clear`      | Moderação   | Apaga de 1 a 1000 mensagens                                                                |
+| `/kick`       | Moderação   | Expulsa um membro, com botões de confirmação                                               |
+
+Todos funcionam também com prefixo (`!help`, `!kick @usuário motivo`...).
 
 ## 🗂 Estrutura
 
 ```
 src/
-  index.ts                 entry point
+  index.ts                 entry point (inicialização e desligamento)
   commands/                comandos (carregados automaticamente, em qualquer subpasta)
+  components/              handlers de botões, menus e modais (carregados automaticamente)
   events/                  eventos (carregados automaticamente, em qualquer subpasta)
-  example/                 exemplos de comando/evento (NÃO são carregados)
+  example/                 exemplos de comando, evento e modal (NÃO são carregados)
+  handlers/                roteamento de mensagens e interações para comandos/componentes
   config/
     env.ts                 validação das variáveis de ambiente (zod)
     intents.ts             intents e partials
-    commands/              createCommand, guards (permissões/cooldown), registro de slash commands
-  loaders/                 carregamento e validação de comandos/eventos
+    commands/              createCommand, contexto, guards, leitura de opções no prefixo, registro
+    components/            customId (montar/ler ids de componentes)
+  loaders/                 carregamento e validação de comandos, eventos e componentes
+  utils/                   lógica compartilhada (help, moderação)
   types/                   tipos compartilhados
+scripts/                   gerador de arquivos (npm run new:*)
 ```
 
 ## 🖥 Uso
 
 ### Criando um comando
 
-Crie um arquivo em `src/commands/<pasta>/` com o comando como `export default` (veja `src/example/commandExample.ts`). Comandos inválidos são ignorados com um aviso no console.
+Rode `npm run new:command -- <pasta>/<nome>` ou crie um arquivo em `src/commands/<pasta>/` com o comando como `export default` (veja `src/example/commandExample.ts`). Comandos inválidos são ignorados com um aviso no console explicando o problema.
 
 ```typescript
 import { ApplicationCommandOptionType, PermissionFlagsBits } from "discord.js";
@@ -76,7 +97,6 @@ export default createCommand({
     name: "eco",
     description: "Repete a mensagem",
     category: categories.Utilitarios,
-    usage: { prefix: "!eco <mensagem>", slash: "/eco <mensagem>" },
     type: typeCommand.all, // .message (prefixo), .slash ou .all
     isActive: true,
     cooldown: 3, // segundos, por usuário
@@ -88,29 +108,105 @@ export default createCommand({
             description: "O que repetir",
             type: ApplicationCommandOptionType.String,
             required: true,
+            maxLength: 200,
         },
     ],
 
     // `source`: Message ou ChatInputCommandInteraction original.
     // `ctx`: contexto normalizado, igual para prefixo e slash.
     execute: async (_source, ctx) => {
-        const mensagem = ctx.getString("mensagem");
-        await ctx.reply(mensagem ?? "Nada para repetir.");
+        await ctx.reply(ctx.getString("mensagem")!);
     },
 });
 ```
 
-Notas:
+O texto de uso (`!eco <mensagem>`, exibido no `/help` e nos erros) é gerado a partir das opções; defina `usage` só se quiser outro texto.
 
-- Nos comandos de prefixo as opções são **posicionais** (na ordem de `slashCommandOptions`) e a última opção de texto recebe o restante da mensagem.
-- `ctx.reply({ content, ephemeral: true })` só esconde a resposta em slash commands.
+#### O contexto (`ctx`)
+
+| Membro                                                                 | Descrição                                                                                    |
+| ---------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `ctx.user`, `ctx.guild`, `ctx.client`, `ctx.isSlash`                   | Quem usou, onde (`null` em DM), o client do bot e se veio de slash                           |
+| `ctx.has(nome)`                                                        | Se a opção foi informada                                                                     |
+| `ctx.getString/getInteger/getNumber/getBoolean(nome)`                  | Valor da opção (ou `null`)                                                                   |
+| `await ctx.getUser/getMember/getChannel/getRole(nome)`                 | Entidade da opção; no prefixo aceita menção (`@usuário`, `#canal`, `@cargo`) ou ID           |
+| `ctx.getSubcommand()`, `ctx.getSubcommandGroup()`                      | Subcomando escolhido                                                                         |
+| `await ctx.defer({ ephemeral? })`                                      | Para comandos lentos: o Discord exige resposta em até 3s (no prefixo, mostra "digitando...") |
+| `await ctx.reply(texto \| { content, embeds, components, ephemeral })` | Responde e devolve a mensagem enviada. `ephemeral` só vale no slash                          |
+| `ctx.args`                                                             | Argumentos crus (só prefixo)                                                                 |
+
+#### Opções no prefixo
+
+- As opções são **posicionais**, na ordem de `slashCommandOptions`. Se a última for de texto, ela recebe o restante da mensagem (`!kick @fulano spam no chat`).
+- São validadas como o Discord faz no slash: obrigatórias, tipo, `minValue`/`maxValue`, `minLength`/`maxLength` e `choices`. Se algo estiver errado, o comando nem roda e o usuário recebe o erro e o uso correto.
+- Subcomandos são o primeiro argumento (`!config prefixo ?`); grupos, os dois primeiros.
+
+#### Subcomandos e autocomplete
+
+```typescript
+slashCommandOptions: [
+    {
+        name: "adicionar",
+        description: "Adiciona um item",
+        type: ApplicationCommandOptionType.Subcommand,
+        options: [
+            { name: "item", description: "Item", type: ApplicationCommandOptionType.String, required: true, autocomplete: true },
+        ],
+    },
+    { name: "listar", description: "Lista os itens", type: ApplicationCommandOptionType.Subcommand },
+],
+
+// Chamado enquanto o usuário digita uma opção com `autocomplete: true` (só slash).
+autocomplete: async (interaction) => {
+    const digitado = interaction.options.getFocused();
+    await interaction.respond([{ name: `Usar "${digitado}"`, value: digitado }]);
+},
+
+execute: async (_source, ctx) => {
+    if (ctx.getSubcommand() === "listar") { /* ... */ }
+},
+```
+
+O `/help` (`src/commands/utils/help.ts`) é um exemplo real de autocomplete.
+
+#### Outras regras
+
 - Permissões declaradas também definem `default_member_permissions` no slash command e bloqueiam o uso em DMs.
 - Cooldown e permissões são verificados antes do `execute`, com o mesmo cooldown para `!cmd` e `/cmd`.
 - Erros lançados em `execute` são registrados no console e o usuário recebe uma mensagem genérica.
 
+### Botões, menus e modais
+
+Crie um handler em `src/components/` (ou use `npm run new:component`). O `customId` segue o formato `id:param1:param2`: o `id` escolhe o handler e os parâmetros chegam prontos. Como o estado fica no próprio `customId`, os botões continuam funcionando depois que o bot reinicia.
+
+```typescript
+// src/components/votar.ts
+import { MessageFlags } from "discord.js";
+import { defineComponent } from "../types";
+
+export default defineComponent({
+    id: "votar",
+    kind: "button", // "button" | "selectMenu" | "modal"
+    execute: async (interaction, [opcao]) => {
+        await interaction.reply({
+            content: `Você votou em ${opcao}!`,
+            flags: MessageFlags.Ephemeral,
+        });
+    },
+});
+
+// No comando, crie o botão com o mesmo id:
+new ButtonBuilder()
+    .setCustomId(buildCustomId("votar", "sim"))
+    .setLabel("Sim")
+    .setStyle(ButtonStyle.Success);
+```
+
+Exemplos reais: `src/components/kick.ts` (confirmação do `/kick`), `src/components/help.ts` (menu do `/help`) e `src/example/componentExample.ts` (modal). IDs sem handler são ignorados, então collectors (`awaitMessageComponent`) continuam funcionando.
+
 ### Criando um evento
 
-Crie um arquivo em `src/events/<pasta>/` (veja `src/example/eventExample.ts`). Use `defineEvent` para ter os argumentos tipados; o `client` do bot é sempre o último argumento.
+Rode `npm run new:event -- <pasta>/<nome> [Evento]` ou crie um arquivo em `src/events/<pasta>/` (veja `src/example/eventExample.ts`). Use `defineEvent` para ter os argumentos tipados; o `client` do bot é sempre o último argumento.
 
 ```typescript
 import { Events } from "discord.js";

@@ -32,7 +32,7 @@ Pull requests (PRs) são bem-vindos, mas devem seguir algumas diretrizes:
 2. Instale as dependências com `npm install`.
 3. Antes de enviar, garanta que tudo passa localmente:
     ```bash
-    npm run typecheck && npm run lint && npm run format:check && npm test && npm run build
+    npm run typecheck && npm run lint && npm run format:check && npm run test:coverage && npm run build
     ```
     (`npm run format` corrige a formatação automaticamente.) O mesmo roda no CI.
 4. Inclua testes (Vitest, arquivos `*.test.ts` ao lado do código) para lógica nova.
