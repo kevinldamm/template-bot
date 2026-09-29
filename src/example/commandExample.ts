@@ -1,69 +1,48 @@
-// Importações necessárias do discord.js e tipos
-import { ApplicationCommandOptionType, CommandInteraction, Message, PermissionFlagsBits } from "discord.js";
+// Exemplo de comando. Para criar um comando real, copie este arquivo para `src/commands/<pasta>/`.
+// Arquivos em `src/example/` NÃO são carregados pelo bot.
+import { ApplicationCommandOptionType, PermissionFlagsBits } from "discord.js";
 import { categories } from "../config/categories/category";
 import createCommand from "../config/commands/createCommand";
 import { typeCommand } from "../types";
 
-// Criação do comando 'example'
 const commandExample = createCommand({
-    name: "example", // Nome do comando
-    description: "Comando de exemplo", // Descrição do comando
-    category: categories.Utilitarios, // Categorização do comando
-    // Define o tipo do comando, indicando se é um comando de texto, de interação ou ambos
-    type: typeCommand.all, // tipo de comando, pode ser typeCommand.message que é para comando prefixo, typeCommand.slash que é para comando de interação e typeCommand.all que é para ambos
+    name: "example", // 1-32 caracteres minúsculos (letras, números, _ ou -)
+    description: "Comando de exemplo", // até 100 caracteres
+    category: categories.Utilitarios,
+    // typeCommand.message = só prefixo | typeCommand.slash = só slash | typeCommand.all = ambos
+    type: typeCommand.all,
     usage: {
-        prefix: "!example",
-        slash: "/example",
+        prefix: "!example <mensagem>",
+        slash: "/example <mensagem>",
     },
-    permissions: [
-        PermissionFlagsBits.Administrator // Permissões necessárias para utilizar o comando
-    ],
-    // Tempo de cooldown para evitar spam do comando, em segundos
-    cooldown: 3, // tempo de cooldown para evitar spam do comando, se não informado, o comando não tem cooldown	
-    isActive: true, // Define se o comando está ativo ou não
-    slashCommandOptions: [ // Opções do comando para slashCommand, não obrigatorias
+    permissions: [PermissionFlagsBits.Administrator], // permissões exigidas do usuário (opcional)
+    botPermissions: [PermissionFlagsBits.SendMessages], // permissões exigidas do bot (opcional)
+    guildOnly: true, // bloqueia o uso em DMs (implícito se houver permissions/botPermissions)
+    cooldown: 3, // segundos entre usos, por usuário (opcional)
+    isActive: true, // comandos inativos não são carregados
+    // Opções do slash command. No prefixo elas são posicionais, e a última opção de texto
+    // recebe o restante da mensagem.
+    slashCommandOptions: [
         {
-            name: "message", // Nome da opção
-            description: "Mensagem opcional para o comando", // Descrição da opção
-            type: ApplicationCommandOptionType.String, // Tipo da opção
-            required: true // Define se a opção é obrigatória
-        }
+            name: "mensagem",
+            description: "Mensagem que o bot vai repetir",
+            type: ApplicationCommandOptionType.String,
+            required: true,
+        },
     ],
 
-    // Função de execução do comando, contendo a lógica principal
-    execute: async (args: Message | CommandInteraction) => {
-        // Inicializa a variável que armazenará a resposta
-        let messageReply = "";
+    // `source` é o Message (prefixo) ou ChatInputCommandInteraction (slash) original.
+    // `ctx` é um contexto normalizado que funciona igual nos dois casos.
+    execute: async (_source, ctx) => {
+        const message = ctx.getString("mensagem");
 
-        // Verifica se o comando foi invocado como uma mensagem de texto/prefixo
-        if (args instanceof Message) {
-            // Extrai a mensagem após o comando, se houver
-            const message = args.content.split(/\s+/).slice(1).join(' ');
-
-            // Responde pedindo uma mensagem se nenhuma foi fornecida
-            if (!message) {
-                await args.reply("Por favor, insira uma mensagem.");
-                return;
-            }
-
-            // Concatena a mensagem fornecida à resposta
-            messageReply += `${message} `;
-
-        // Verifica se o comando foi invocado como um comando de interação (barra)
-        } else if (args instanceof CommandInteraction) {
-            // Extrai a mensagem fornecida como opção do comando
-            const message = args.options.get("message")?.value as string;
-
-            // Concatena a mensagem fornecida à resposta
-            if (message) {
-                messageReply += `${message} `;
-            }
+        if (!message) {
+            await ctx.reply({ content: "Por favor, insira uma mensagem.", ephemeral: true });
+            return;
         }
 
-        // Envia a resposta concatenada
-        await args.reply(messageReply);
-    }
+        await ctx.reply(message);
+    },
 });
 
-// Exporta o comando para que ele possa ser utilizado pelo bot
 export default commandExample;

@@ -1,68 +1,49 @@
-import { Client, Collection } from "discord.js";
-import { promises as fs } from "fs";
 import path from "path";
 import { BotClient, EventType } from "../types";
-import colorConsole from "../config/theme/consoleColors";
-import { eventNames } from "process";
+import { logger } from "../config/logger";
+import { importDefault, walkCodeFiles } from "./utils";
+import { validateEvent } from "./validate";
 
 const loadEvents = async (client: BotClient): Promise<void> => {
-    let onceEventsCount = 0;
-    let recurringEventsCount = 0;
+    let once = 0;
+    let recurring = 0;
 
- 
+    const files = await walkCodeFiles(path.join(__dirname, "../events"));
 
-    const loadEventFile = async (filePath: string): Promise<boolean> => {
+    for (const file of files) {
+        const relative = path.relative(path.join(__dirname, ".."), file);
+
         try {
-            const modulePath = path.resolve(filePath);
-            const module = await import(modulePath);
-
-            const event: EventType = module.default;
-
-            if (!event.name || typeof event.execute !== "function") {
-                console.error(`${colorConsole.red}⚠️ Arquivo inválido: ${filePath} (faltando ${colorConsole.bold}nome${colorConsole.reset} ${colorConsole.red}ou ${colorConsole.bold}execute${colorConsole.reset} ${colorConsole.red}função.)${colorConsole.reset}`);
-                return false;
+            const event = await importDefault(file);
+            const problem = validateEvent(event);
+            if (problem) {
+                logger.warn(`Evento ignorado (${relative}): ${problem}`);
+                continue;
             }
 
-            if (event.once) {
-               
-                client.once(event.name, (...args) => event.execute(...args, client));
-                onceEventsCount++;
+            const valid = event as EventType;
+            // O tipo dos argumentos é garantido por `defineEvent` em cada evento.
+            const handler = (...args: unknown[]): void => {
+                Promise.resolve(
+                    (valid.execute as (...a: unknown[]) => unknown)(...args, client),
+                ).catch((error: unknown) =>
+                    logger.error(`Erro no evento "${String(valid.name)}"`, error),
+                );
+            };
+
+            if (valid.once) {
+                client.once(valid.name, handler);
+                once++;
             } else {
-                
-                client.on(event.name, (...args) => event.execute(...args, client));
-                recurringEventsCount++;
-            }
-
-            return true;
-        } catch (error) {
-            console.error(`${colorConsole.red}⚠️ Falha ao carregar arquivo de evento ${filePath}: ${error}${colorConsole.reset}`);
-            return false;
-        }
-    };
-
-    const loadDirectory = async (directory: string): Promise<void> => {
-        try {
-            const items = await fs.readdir(directory);
-
-            for (const item of items) {
-                const filePath = path.join(directory, item);
-                const stat = await fs.stat(filePath);
-
-                if (stat.isDirectory()) {
-                    await loadDirectory(filePath);
-                } else {
-                    await loadEventFile(filePath);
-                }
+                client.on(valid.name, handler);
+                recurring++;
             }
         } catch (error) {
-            console.error(`${colorConsole.red}⚠️ Falha ao carregar eventos: ${error}${colorConsole.reset}`);
+            logger.error(`Falha ao carregar o evento ${relative}`, error);
         }
-    };
+    }
 
-    await loadDirectory(path.join(__dirname, "../events"));
-
- 
-    console.log(`${colorConsole.green}✅ Eventos carregados: ${colorConsole.yellow}${onceEventsCount} once${colorConsole.reset} | ${colorConsole.cyan}${recurringEventsCount} recurring${colorConsole.reset}`);
-}
+    logger.success(`Eventos carregados: ${once} once | ${recurring} recurring`);
+};
 
 export default loadEvents;

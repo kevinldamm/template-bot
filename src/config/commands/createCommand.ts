@@ -1,54 +1,31 @@
-import { ApplicationCommandOptionData, CommandInteraction, Message, PermissionResolvable } from "discord.js";
-import { CommandType, category, typeCommand, usageType } from "../../types";
+import { ChatInputCommandInteraction, Message } from "discord.js";
+import { CommandContext, CommandType } from "../../types";
+import { buildContext, replyError } from "./context";
+import { logger } from "../logger";
 
-function createCommand(options: {
-    name: string,
-    description: string,
-    type: typeCommand,
-    usage: usageType,
-    cooldown?: number,
-    permissions?: PermissionResolvable[],
-    category: category,
-    isActive: boolean,
-    slashCommandOptions?: ApplicationCommandOptionData[],
-    execute: (args: CommandInteraction | Message, options?: any) => Promise<void>
-}): CommandType {
-    const { name, description, type, usage, cooldown, permissions, category, isActive, slashCommandOptions, execute } = options;
+type CommandDefinition = Omit<CommandType, "executeMessage" | "executeInteraction"> & {
+    /**
+     * Lógica do comando. Recebe o `Message`/`ChatInputCommandInteraction` original e um
+     * contexto normalizado (`ctx`) que funciona igual para prefixo e slash.
+     */
+    execute: (source: Message | ChatInputCommandInteraction, ctx: CommandContext) => Promise<void>;
+};
+
+function createCommand({ execute, ...definition }: CommandDefinition): CommandType {
+    const run = async (source: Message | ChatInputCommandInteraction): Promise<void> => {
+        try {
+            await execute(source, buildContext(source, definition));
+        } catch (error) {
+            logger.error(`Erro ao executar o comando "${definition.name}"`, error);
+            await replyError(source);
+        }
+    };
 
     return {
-        name,
-        description,
-        type,
-        usage,
-        cooldown,
-        permissions,
-        category,
-        slashCommandOptions,
-        isActive,
-
-        executeInteraction: async (args: CommandInteraction) => {
-            try {
-                const options = args.options;
-                await execute(args, options);
-            } catch (error) {
-                console.log(error);
-                args.reply({ content: "Ocorreu um erro ao executar o comando.", ephemeral: true });
-            }
-        },
-
-        executeMessage: async (args: Message) => {
-            try {
-                const content = args.content.split(/\s+/).slice(1);
-                await execute(args, { content });
-            } catch (error) {
-                console.log(error);
-                args.reply({ content: "Ocorreu um erro ao executar o comando." });
-
-                setTimeout(() => args.delete(), 5000);
-            }
-        }
+        ...definition,
+        executeInteraction: run,
+        executeMessage: run,
     };
 }
 
 export default createCommand;
-

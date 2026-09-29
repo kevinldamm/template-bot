@@ -1,36 +1,49 @@
-import { Client, Collection } from "discord.js";
+import { Client, Collection, Events } from "discord.js";
 import { intentsMap, partialIntentsMap } from "./config/intents";
-import { config } from "dotenv";
+import { EnvError, loadEnv } from "./config/env";
+import { logger } from "./config/logger";
 import loadCommands from "./loaders/loadCommands";
-import { BotClient, CommandType, EventType } from "./types";
 import loadEvents from "./loaders/loadEvents";
 import { registerCommands } from "./config/commands/registerCommands";
-config();
+import { BotClient, CommandType } from "./types";
 
+process.on("unhandledRejection", (reason) =>
+    logger.error("Promise rejeitada sem tratamento", reason),
+);
+process.on("uncaughtException", (error) => logger.error("Exceção não capturada", error));
 
-const client: BotClient = new Client({
-    intents: intentsMap,
-    partials: partialIntentsMap,
-    allowedMentions: {
-        parse: ["users", "roles"],
-        repliedUser: true,
+const startBot = async (): Promise<void> => {
+    const env = loadEnv();
+
+    const client = new Client({
+        intents: intentsMap,
+        partials: partialIntentsMap,
+        allowedMentions: {
+            parse: ["users", "roles"],
+            repliedUser: true,
+        },
+    }) as BotClient;
+
+    client.commands = new Collection<string, CommandType>();
+    client.slashCommands = new Collection<string, CommandType>();
+
+    await loadCommands(client);
+    await loadEvents(client);
+
+    client.once(Events.ClientReady, () => {
+        registerCommands(client, env).catch((error: unknown) =>
+            logger.error("Falha ao registrar os slash commands", error),
+        );
+    });
+
+    await client.login(env.DISCORD_TOKEN);
+};
+
+startBot().catch((error: unknown) => {
+    if (error instanceof EnvError) {
+        logger.error(error.message);
+    } else {
+        logger.error("Falha ao iniciar o bot", error);
     }
-}) as BotClient
-
-client.commands = new Collection<string, CommandType>();
-client.slashCommands = new Collection<string, CommandType>();
-
-const startBot = async () => {
-    await loadCommands(client)
-    await loadEvents(client)
-    await registerCommands(client)
-
-    await client.login(process.env.DISCORD_TOKEN)
-
-}
-
-
-
-
-startBot()
-
+    process.exit(1);
+});

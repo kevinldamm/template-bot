@@ -1,81 +1,37 @@
-import { Events, Interaction, InteractionType } from "discord.js";
-import { BotClient, CommandType, EventType, typeCommand } from "../../types";
-import colorConsole from "../../config/theme/consoleColors";
+import { Events } from "discord.js";
+import { defineEvent } from "../../types";
+import { checkCommandGuards } from "../../config/commands/guards";
+import { replyError } from "../../config/commands/context";
+import { logger } from "../../config/logger";
 
-const cooldowns = new Map();
-
-const interactionCreateEvent: EventType = {
-    name: "interactionCreate",
+export default defineEvent({
+    name: Events.InteractionCreate,
     once: false,
 
-    execute: async (interaction) => {
-        if (!interaction.isCommand()) return;
+    execute: async (interaction, client) => {
+        if (!interaction.isChatInputCommand()) return;
 
-        const command: CommandType = interaction.client.commands.get(interaction.commandName);
+        const command = client.slashCommands.get(interaction.commandName);
+        if (!command?.executeInteraction) return;
 
+        const guardError = checkCommandGuards({
+            command,
+            userId: interaction.user.id,
+            inGuild: interaction.inGuild(),
+            memberPermissions: interaction.memberPermissions,
+            botPermissions: interaction.appPermissions,
+        });
 
-        if (!command) return;
-
-        if ((command.type === typeCommand.slash && !interaction.isCommand()) ||
-            (command.type === typeCommand.message && !interaction.isMessageComponent())) {
+        if (guardError) {
+            await replyError(interaction, guardError);
             return;
         }
 
-
-        if (command.permissions) {
-            const permissionMissing = command.permissions.filter(p => !interaction.member.permissions.has(p));
-            if (permissionMissing.length) {
-                return interaction.reply({
-                    content: "Você não tem permissão para usar este comando.",
-                    ephemeral: true,
-                });
-            }
-        }
-
-        if (command.cooldown) {
-            const now = Date.now();
-            const timestamps = cooldowns.get(command.name) || new Map();
-            const cooldownAmount = (command.cooldown || 0) * 1000;
-
-            if (timestamps.has(interaction.user.id)) {
-                const expirationTime = timestamps.get(interaction.user.id) + cooldownAmount;
-
-                if (now < expirationTime) {
-                    const timeLeft = (expirationTime - now) / 1000;
-                    return interaction.reply({
-                        content: `Por favor, espere ${timeLeft.toFixed(1)} segundo(s) antes de reusar o comando \`${command.name}\`.`,
-                        ephemeral: true,
-                    });
-                }
-            }
-
-            timestamps.set(interaction.user.id, now);
-            setTimeout(() => timestamps.delete(interaction.user.id), cooldownAmount);
-            cooldowns.set(command.name, timestamps);
-        }
-
-        if (!command.isActive) {
-            return interaction.reply({
-                content: "Este comando está temporariamente indisponível.",
-                ephemeral: true,
-            });
-        }
-
         try {
-            if (command.executeInteraction && interaction.isCommand()) {
-                await command.executeInteraction(interaction);
-            } else if (command.executeMessage && interaction.isMessageComponent()) {
-                await command.executeMessage(interaction);
-            }
+            await command.executeInteraction(interaction);
         } catch (error) {
-            console.error(error);
-            await interaction.reply({
-                content: "Ocorreu um erro ao executar este comando.",
-                ephemeral: true,
-            });
+            logger.error(`Erro ao executar /${command.name}`, error);
+            await replyError(interaction);
         }
-
-    }
-};
-
-export default interactionCreateEvent;
+    },
+});

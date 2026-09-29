@@ -1,7 +1,19 @@
-import { ApplicationCommandOptionType, ColorResolvable, CommandInteraction, EmbedBuilder, Message, PermissionFlagsBits, TextChannel } from "discord.js";
+import {
+    ApplicationCommandOptionType,
+    EmbedBuilder,
+    Message,
+    PermissionFlagsBits,
+} from "discord.js";
 import { categories } from "../../config/categories/category";
 import createCommand from "../../config/commands/createCommand";
+import { EMBED_COLORS } from "../../config/constants";
+import { logger } from "../../config/logger";
 import { typeCommand } from "../../types";
+import { validateClearAmount } from "../../utils/validation";
+
+const BATCH_SIZE = 100;
+const BULK_DELETE_MAX_AGE_MS = 1000 * 60 * 60 * 24 * 14;
+const PROGRESS_EVERY_N_BATCHES = 5;
 
 const DeleteMessages = createCommand({
     name: "clear",
@@ -12,8 +24,11 @@ const DeleteMessages = createCommand({
         prefix: "!clear [quantidade]",
         slash: "/clear [quantidade]",
     },
-    permissions: [
-        PermissionFlagsBits.ManageMessages
+    permissions: [PermissionFlagsBits.ManageMessages],
+    botPermissions: [
+        PermissionFlagsBits.ManageMessages,
+        PermissionFlagsBits.ReadMessageHistory,
+        PermissionFlagsBits.EmbedLinks,
     ],
     cooldown: 3,
     isActive: true,
@@ -22,118 +37,106 @@ const DeleteMessages = createCommand({
             name: "quantidade",
             description: "Quantidade de mensagens para limpar",
             type: ApplicationCommandOptionType.Integer,
-            required: true
-        }
+            required: true,
+            minValue: 1,
+            maxValue: 1000,
+        },
     ],
 
-    execute: async (args: Message | CommandInteraction) => {
-        let quantity = 0;
-
-        if (args instanceof Message) {
-            const message = args.content.split(/\s+/).slice(1).join(' ');
-
-            if (!message) {
-                await args.reply("Por favor, insira uma quantidade de mensagens para limpar");
-                return;
-            }
-
-            quantity = parseInt(message);
-
-            if (isNaN(quantity)) {
-                await args.reply("Por favor, insira um número de mensagens válido");
-                return;
-            }
-        } else if (args instanceof CommandInteraction) {
-            const message = args.options.get("quantidade")?.value as number;
-            quantity = Math.floor(message);
-        }
-
-        if (quantity <= 0) {
-            await args.reply("Por favor, insira uma quantidade de mensagens maior que 0");
+    execute: async (source, ctx) => {
+        const provided = ctx.isSlash || ctx.args.length > 0;
+        const validation = validateClearAmount(ctx.getInteger("quantidade"), provided);
+        if (!validation.ok) {
+            await ctx.reply({ content: validation.error, ephemeral: true });
             return;
         }
 
-        const channel = args.channel;
-
-        if (!channel || !(channel instanceof TextChannel)) {
-            await args.reply("Por favor, envie este comando em um canal de texto");
+        const channel = source.channel;
+        if (!channel || !channel.isTextBased() || channel.isDMBased()) {
+            await ctx.reply({
+                content: "Por favor, envie este comando em um canal de texto.",
+                ephemeral: true,
+            });
             return;
-        }   
+        }
 
         const embed = new EmbedBuilder()
             .setTitle("🧹 Limpeza de Mensagens")
-            .setColor("#34eb46" as ColorResolvable)
-            .setDescription(`Iniciando a limpeza de ${quantity} mensagens...`)
-            .setFooter({ text: "Por favor, aguarde..." })
+            .setColor(EMBED_COLORS.info)
+            .setDescription(`Iniciando a limpeza de ${validation.amount} mensagens...`)
+            .setFooter({ text: "Por favor, aguarde..." });
 
-        await args.reply({ embeds: [embed] });
+        const status = await ctx.reply({ embeds: [embed] });
 
-        const progressEmbed = new EmbedBuilder()
-            .setColor("#3498db" as ColorResolvable)
-            .setDescription("Iniciando a limpeza...");
-
-        let progressMessage = await channel.send({ embeds: [progressEmbed] });
-        let progressMessageId = progressMessage.id;
-
-        const deleteMessages = async (amount: number): Promise<{ totalDeleted: number, oldMessagesFound: number }> => {
-            let deleted = 0;
-            let oldMessagesFound = 0;
-            let batchCount = 0;
-        
-            while (amount > 0) {
-                const toDelete = Math.min(amount, 100);
-        
-                const messages = await channel.messages.fetch({ limit: toDelete });
-                messages.delete(progressMessageId); 
-        
-            
-                const now = Date.now();
-                const twoWeeks = 1000 * 60 * 60 * 24 * 14;
-                const messagesToDelete = messages.filter(message => (now - message.createdTimestamp) < twoWeeks);
-        
-                oldMessagesFound += messages.size - messagesToDelete.size;
-        
-                if (messagesToDelete.size === 0) break;
-        
-                const deletedMessages = await channel.bulkDelete(messagesToDelete, true).catch(console.error);
-                if (!deletedMessages) break;
-                deleted += deletedMessages.size;
-                amount -= toDelete;
-                batchCount++;
-        
-                if (batchCount % 10 === 0) {
-                    progressEmbed.setDescription(`Progresso da limpeza: ${deleted} mensagens limpas. ${oldMessagesFound > 0 ? `${oldMessagesFound} mensagem(ns) antiga(s) encontrada(s) e não pode(m) ser deletada(s).` : ''}`);
-                    try {
-                        progressMessage = await progressMessage.edit({ embeds: [progressEmbed] });
-                    } catch (error) {
-                        console.error("Erro ao atualizar a mensagem de progresso:", error);
-                    }
-                }
-        
-                if (deletedMessages.size < toDelete) break;
-            }
-            return { totalDeleted: deleted, oldMessagesFound: oldMessagesFound };
-        };
-        
+        let remaining = validation.amount;
+        let deleted = 0;
+        let tooOld = 0;
+        let batches = 0;
+        // Só apaga o que veio antes do comando/resposta: a resposta de status nunca é removida.
+        let cursor = source instanceof Message ? source.id : status.id;
 
         try {
-            const { totalDeleted, oldMessagesFound } = await deleteMessages(quantity);
-            embed.setTitle("✅ Limpeza Concluída")
-                .setColor("#34eb46" as ColorResolvable)
-                .setDescription(`Um total de **${totalDeleted}** mensagens foram limpas neste canal.` + (oldMessagesFound > 0 ? ` ${oldMessagesFound} mensagem(ns) antiga(s) não puderam ser deletadas por serem mais antigas que 14 dias.` : ''))
+            while (remaining > 0) {
+                const batch = await channel.messages.fetch({
+                    limit: Math.min(remaining, BATCH_SIZE),
+                    before: cursor,
+                });
+                if (batch.size === 0) break;
+
+                cursor = batch.last()!.id; // `fetch` devolve da mais nova para a mais antiga
+                remaining -= batch.size;
+
+                const now = Date.now();
+                const recent = batch.filter(
+                    (m) => now - m.createdTimestamp < BULK_DELETE_MAX_AGE_MS,
+                );
+                tooOld += batch.size - recent.size;
+
+                if (recent.size > 0) {
+                    const removed = await channel.bulkDelete(recent, true);
+                    deleted += removed.size;
+                }
+
+                // O restante do histórico também seria mais antigo que 14 dias.
+                if (recent.size < batch.size) break;
+
+                batches++;
+                if (batches % PROGRESS_EVERY_N_BATCHES === 0) {
+                    embed.setDescription(`Progresso da limpeza: ${deleted} mensagens limpas.`);
+                    await status
+                        .edit({ embeds: [embed] })
+                        .catch((error: unknown) =>
+                            logger.warn(`Não foi possível atualizar o progresso: ${String(error)}`),
+                        );
+                }
+            }
+
+            embed
+                .setTitle("✅ Limpeza Concluída")
+                .setColor(EMBED_COLORS.success)
+                .setDescription(
+                    `Um total de **${deleted}** mensagens foram limpas neste canal.` +
+                        (tooOld > 0
+                            ? ` ${tooOld} mensagem(ns) não puderam ser deletadas por serem mais antigas que 14 dias.`
+                            : ""),
+                )
                 .setFooter({ text: "Operação concluída com sucesso!" });
         } catch (error) {
-            console.error(error);
-        
-            embed.setTitle("❌ Erro ao Limpar")
-                .setColor("#eb3434" as ColorResolvable)
-                .setDescription("Ocorreu um erro ao limpar as mensagens. Por favor, tente novamente mais tarde.")
+            logger.error("Erro ao limpar mensagens", error);
+            embed
+                .setTitle("❌ Erro ao Limpar")
+                .setColor(EMBED_COLORS.error)
+                .setDescription(
+                    `Ocorreu um erro ao limpar as mensagens (${deleted} já removidas). Tente novamente mais tarde.`,
+                )
                 .setFooter({ text: "Ocorreu um erro." });
         }
-        
 
-        await progressMessage.edit({ embeds: [embed] });
-    } 
+        await status
+            .edit({ embeds: [embed] })
+            .catch((error: unknown) => logger.warn(String(error)));
+        if (source instanceof Message) await source.delete().catch(() => undefined);
+    },
 });
 
 export default DeleteMessages;

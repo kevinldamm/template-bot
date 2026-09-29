@@ -1,55 +1,49 @@
-import { Client, Collection } from "discord.js";
-import { promises as fs } from "fs";
-import { BotClient, CommandType, typeCommand } from "../types";
-import colorConsole from "../config/theme/consoleColors";
 import path from "path";
+import { BotClient, CommandType, typeCommand } from "../types";
+import { logger } from "../config/logger";
+import { importDefault, walkCodeFiles } from "./utils";
+import { validateCommand } from "./validate";
 
 const loadCommands = async (client: BotClient): Promise<void> => {
+    client.commands.clear();
+    client.slashCommands.clear();
 
-    let prefixCommandsCount = 0;
-    let slashCommandsCount = 0;
+    const files = await walkCodeFiles(path.join(__dirname, "../commands"));
 
-    const loadDirectory = async (directory: string): Promise<void> => {
+    for (const file of files) {
+        const relative = path.relative(path.join(__dirname, ".."), file);
+
         try {
-            const items = await fs.readdir(directory);
-
-            for (const item of items) {
-                const itemPath = path.join(directory, item); 
-                const stat = await fs.stat(itemPath);
-
-                if (stat.isDirectory()) {
-                    await loadDirectory(itemPath);
-                } else {
-                    if (item.endsWith(".ts") || item.endsWith(".js")) { 
-                        const command: CommandType = (await import(itemPath)).default;
-                        const category = command.category || directory.split(path.sep).pop()?.toLowerCase() || "default";
-                        const usage = command.usage || "Não especificado";
-
-                        if (command.isActive) {
-                            command.category = category;
-                            command.usage = usage;
-
-                            if (command.type === typeCommand.message || command.type === typeCommand.all) {
-                                client.commands.set(command.name, command);
-                                prefixCommandsCount++;
-                            }
-
-                            if (command.type === typeCommand.slash || command.type === typeCommand.all) {
-                                client.slashCommands.set(command.name, command);
-                                slashCommandsCount++;
-                            }
-                        }
-                    }
-                }
+            const command = await importDefault(file);
+            const problem = validateCommand(command);
+            if (problem) {
+                logger.warn(`Comando ignorado (${relative}): ${problem}`);
+                continue;
             }
+
+            const valid = command as CommandType;
+            if (!valid.isActive) continue;
+
+            const usesPrefix = valid.type === typeCommand.message || valid.type === typeCommand.all;
+            const usesSlash = valid.type === typeCommand.slash || valid.type === typeCommand.all;
+
+            if (usesPrefix) register(client.commands, valid, relative);
+            if (usesSlash) register(client.slashCommands, valid, relative);
         } catch (error) {
-            console.error(`${colorConsole.red}Erro ao carregar os comandos: ${error}${colorConsole.reset}`);
+            logger.error(`Falha ao carregar o comando ${relative}`, error);
         }
-    };
+    }
 
-    await loadDirectory(path.join(__dirname, "../commands"));
-
-    console.log(`${colorConsole.green}✅ Comandos carregados:${colorConsole.reset} ${colorConsole.yellow}${prefixCommandsCount} prefixCommands${colorConsole.reset} | ${colorConsole.cyan}${slashCommandsCount} slashCommands${colorConsole.reset}`);
+    logger.success(
+        `Comandos carregados: ${client.commands.size} prefixo | ${client.slashCommands.size} slash`,
+    );
 };
+
+function register(collection: BotClient["commands"], command: CommandType, file: string): void {
+    if (collection.has(command.name)) {
+        logger.warn(`Comando duplicado "${command.name}" em ${file}: sobrescrevendo o anterior`);
+    }
+    collection.set(command.name, command);
+}
 
 export default loadCommands;
