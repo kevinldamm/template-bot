@@ -1,25 +1,18 @@
-import { readFileSync } from "node:fs";
-import path from "node:path";
-import { Client, Events } from "discord.js";
-import { EventType } from "../../types/index.js";
-import colorConsole from "../../config/theme/consoleColors.js";
+import { Events } from "discord.js";
+import { defineEvent } from "../../types";
+import { readPackageInfo } from "../../config/packageInfo";
+import colorConsole from "../../config/theme/consoleColors";
 
-const packageJsonPath = path.join(__dirname, "../../../package.json");
-const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf8")) as {
-    version: string;
-    author: string;
-};
-
-const ReadyBot: EventType = {
+export default defineEvent({
     name: Events.ClientReady,
     once: true,
-    execute: (...args: unknown[]) => {
-        const client = args[0] as Client;
 
-        console.log(`${colorConsole.greenBold}🟢 Online como ${client.user?.tag}${colorConsole.reset}`);
-        console.log(`${colorConsole.greenBold}🟢 Versão: ${packageJson.version}${colorConsole.reset}`);
-        console.log(`${colorConsole.greenBold}🟢 Fui desenvolvido por ${colorConsole.whiteBoldOnGreen}${packageJson.author}${colorConsole.reset}`);
+    execute: (client) => {
+        const { version, author } = readPackageInfo();
+        console.log(`${colorConsole.greenBold}🟢 ${client.user.tag} online${colorConsole.reset}`);
+        console.log(`${colorConsole.greenBold}🟢 Versão: ${version}${colorConsole.reset}`);
+        console.log(
+            `${colorConsole.greenBold}🟢 Fui desenvolvido por ${colorConsole.whiteBoldOnGreen}${author}${colorConsole.reset}`,
+        );
     },
-};
-
-export default ReadyBot;
+});

@@ -1,3 +1,4 @@
-export * from "./botClient.js";
-export * from "./commandType.js";
-export * from "./eventType.js";
+export * from "./botClient";
+export * from "./commandType";
+export * from "./componentType";
+export * from "./eventType";

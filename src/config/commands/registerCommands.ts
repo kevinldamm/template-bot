@@ -1,42 +1,42 @@
-import { config } from "dotenv";
-import { REST, Routes } from "discord.js";
-import { BotClient, CommandType } from "../../types/index.js";
-import colorConsole from "../theme/consoleColors.js";
+import { ChatInputApplicationCommandData, PermissionsBitField } from "discord.js";
+import { BotClient, CommandType } from "../../types";
+import { Env } from "../env";
+import { logger } from "../logger";
 
-config();
-
-const toAPIFormat = (command: CommandType) => ({
+export const toApplicationCommandData = (
+    command: CommandType,
+): ChatInputApplicationCommandData => ({
     name: command.name,
     description: command.description,
-    options: command.slashCommandOptions ?? [],
+    options: command.slashCommandOptions,
+    defaultMemberPermissions: command.permissions?.length
+        ? PermissionsBitField.resolve(command.permissions)
+        : undefined,
+    dmPermission:
+        command.guildOnly || command.permissions?.length || command.botPermissions?.length
+            ? false
+            : undefined,
 });
 
-export const registerCommands = async (client: BotClient): Promise<void> => {
-    const token = process.env.DISCORD_TOKEN;
-    const clientId = process.env.CLIENT_ID;
-    const guildId = process.env.GUILD_ID;
+/**
+ * Sincroniza os slash commands com o Discord em uma única chamada (PUT em massa):
+ * cria, atualiza e remove o que não existe mais no código.
+ * Com `GUILD_ID` definido, registra só nesse servidor (atualiza instantaneamente).
+ *
+ * Precisa do cliente pronto (`client.application`), então roda após o evento `ready`.
+ */
+export const registerCommands = async (client: BotClient, env: Env): Promise<void> => {
+    if (!client.application)
+        throw new Error("O cliente ainda não está pronto para registrar comandos.");
 
-    if (!token) {
-        throw new Error("DISCORD_TOKEN não definido no .env");
+    const data = client.slashCommands.map(toApplicationCommandData);
+    if (env.GUILD_ID) {
+        await client.application.commands.set(data, env.GUILD_ID);
+    } else {
+        await client.application.commands.set(data);
     }
 
-    if (!clientId) {
-        throw new Error("CLIENT_ID não definido no .env");
-    }
-
-    const body = [...client.slashCommands.values()].map(toAPIFormat);
-    const rest = new REST().setToken(token);
-
-    try {
-        if (guildId) {
-            await rest.put(Routes.applicationGuildCommands(clientId, guildId), { body });
-            console.log(`${colorConsole.green}✅ Slash commands registrados no servidor ${guildId}${colorConsole.reset}`);
-        } else {
-            await rest.put(Routes.applicationCommands(clientId), { body });
-            console.log(`${colorConsole.green}✅ Slash commands registrados globalmente${colorConsole.reset}`);
-        }
-    } catch (error) {
-        console.error(`${colorConsole.red}Falha ao registrar comandos: ${error}${colorConsole.reset}`);
-        throw error;
-    }
+    logger.success(
+        `${data.length} slash command(s) sincronizado(s) ${env.GUILD_ID ? `no servidor ${env.GUILD_ID}` : "globalmente"}`,
+    );
 };

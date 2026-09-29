@@ -1,52 +1,47 @@
-import { ChatInputCommandInteraction, Message, MessageFlags, PermissionResolvable, ApplicationCommandOptionData } from "discord.js";
-import { CommandType, category, typeCommand, usageType } from "../../types/index.js";
+import { ChatInputCommandInteraction, Message } from "discord.js";
+import { CommandContext, CommandType } from "../../types";
+import { buildInteractionContext, buildMessageContext, replyError } from "./context";
+import { resolvePrefixOptions } from "./prefixOptions";
+import { getUsage } from "./usage";
+import { loadEnv } from "../env";
+import { logger } from "../logger";
 
-function createCommand(options: {
-    name: string;
-    description: string;
-    type: typeCommand;
-    usage: usageType;
-    cooldown?: number;
-    permissions?: PermissionResolvable[];
-    category: category;
-    isActive: boolean;
-    slashCommandOptions?: ApplicationCommandOptionData[];
-    execute: (args: Message | ChatInputCommandInteraction) => Promise<void>;
-}): CommandType {
-    const { name, description, type, usage, cooldown, permissions, category, isActive, slashCommandOptions, execute } = options;
+type CommandDefinition = Omit<CommandType, "executeMessage" | "executeInteraction"> & {
+    /**
+     * Lógica do comando. Recebe o `Message`/`ChatInputCommandInteraction` original e um
+     * contexto normalizado (`ctx`) que funciona igual para prefixo e slash.
+     */
+    execute: (source: Message | ChatInputCommandInteraction, ctx: CommandContext) => Promise<void>;
+};
+
+function createCommand({ execute, ...definition }: CommandDefinition): CommandType {
+    const run = async (
+        source: Message | ChatInputCommandInteraction,
+        buildCtx: () => CommandContext,
+    ): Promise<void> => {
+        try {
+            await execute(source, buildCtx());
+        } catch (error) {
+            logger.error(`Erro ao executar o comando "${definition.name}"`, error);
+            await replyError(source);
+        }
+    };
 
     return {
-        name,
-        description,
-        type,
-        usage,
-        cooldown,
-        permissions,
-        category,
-        slashCommandOptions,
-        isActive,
+        ...definition,
 
-        executeInteraction: async (args: ChatInputCommandInteraction) => {
-            try {
-                await execute(args);
-            } catch (error) {
-                console.log(error);
-                await args.reply({
-                    content: "Ocorreu um erro ao executar o comando.",
-                    flags: MessageFlags.Ephemeral,
-                });
+        executeInteraction: (interaction) =>
+            run(interaction, () => buildInteractionContext(interaction)),
+
+        executeMessage: async (message, args) => {
+            const resolved = resolvePrefixOptions(definition.slashCommandOptions ?? [], args);
+            if (resolved.errors.length) {
+                const usage = getUsage(definition, loadEnv().PREFIX).prefix;
+                await replyError(message, `${resolved.errors.join("\n")}\nUso: \`${usage}\``);
+                return;
             }
+            await run(message, () => buildMessageContext(message, args, resolved));
         },
-
-        executeMessage: async (args: Message) => {
-            try {
-                await execute(args);
-            } catch (error) {
-                console.log(error);
-                await args.reply({ content: "Ocorreu um erro ao executar o comando." });
-                setTimeout(() => args.delete().catch(() => undefined), 5000);
-            }
-        }
     };
 }
 

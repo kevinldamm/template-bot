@@ -1,13 +1,16 @@
 import { GatewayIntentBits, Partials } from "discord.js";
 
-// Message Content é intent privilegiada: ative-a em Bot > Privileged Gateway Intents no Developer Portal.
-const intentsMap = [
-    GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent,
+/**
+ * Apenas os intents necessários para o template funcionar.
+ * Adicione outros conforme o bot precisar (ex.: GuildMembers, GuildVoiceStates).
+ *
+ * ⚠️ `MessageContent`, `GuildMembers` e `GuildPresences` são privilegiados e precisam
+ * ser habilitados no Developer Portal (e aprovados pelo Discord em bots com 100+ servidores).
+ */
+export const intentsMap: GatewayIntentBits[] = [
+    GatewayIntentBits.Guilds, // eventos de servidores e slash commands
+    GatewayIntentBits.GuildMessages, // mensagens em servidores
+    GatewayIntentBits.MessageContent, // conteúdo das mensagens (comandos com prefixo)
 ];
 
-// Sem partials: evita message.content null em mensagens parciais sem checagem.
-const partialIntentsMap: Partials[] = [];
-
-export { intentsMap, partialIntentsMap };
+export const partialIntentsMap: Partials[] = [Partials.Channel, Partials.Message];
