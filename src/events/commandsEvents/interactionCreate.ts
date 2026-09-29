@@ -1,52 +1,58 @@
-import { Events, Interaction, InteractionType } from "discord.js";
-import { BotClient, CommandType, EventType, typeCommand } from "../../types";
-import colorConsole from "../../config/theme/consoleColors";
+import { ChatInputCommandInteraction, Events, Interaction, MessageFlags, PermissionResolvable } from "discord.js";
+import { BotClient, CommandType, EventType, typeCommand } from "../../types/index.js";
 
-const cooldowns = new Map();
+const cooldowns = new Map<string, Map<string, number>>();
+
+const replyEphemeral = async (interaction: ChatInputCommandInteraction, content: string) => {
+    if (interaction.replied || interaction.deferred) {
+        await interaction.followUp({ content, flags: MessageFlags.Ephemeral });
+        return;
+    }
+    await interaction.reply({ content, flags: MessageFlags.Ephemeral });
+};
 
 const interactionCreateEvent: EventType = {
-    name: "interactionCreate",
+    name: Events.InteractionCreate,
     once: false,
+    execute: async (...args: unknown[]) => {
+        const interaction = args[0] as Interaction;
 
-    execute: async (interaction) => {
-        if (!interaction.isCommand()) return;
+        if (!interaction.isChatInputCommand()) return;
 
-        const command: CommandType = interaction.client.commands.get(interaction.commandName);
-
-
+        const command = (interaction.client as BotClient).slashCommands.get(interaction.commandName) as CommandType | undefined;
         if (!command) return;
 
-        if ((command.type === typeCommand.slash && !interaction.isCommand()) ||
-            (command.type === typeCommand.message && !interaction.isMessageComponent())) {
-            return;
-        }
-
+        if (command.type !== typeCommand.slash && command.type !== typeCommand.all) return;
 
         if (command.permissions) {
-            const permissionMissing = command.permissions.filter(p => !interaction.member.permissions.has(p));
+            const memberPermissions = interaction.memberPermissions;
+            if (!memberPermissions) {
+                await replyEphemeral(interaction, "Não foi possível verificar suas permissões.");
+                return;
+            }
+
+            const permissionMissing = command.permissions.filter(
+                (p) => !memberPermissions.has(p as PermissionResolvable)
+            );
             if (permissionMissing.length) {
-                return interaction.reply({
-                    content: "Você não tem permissão para usar este comando.",
-                    ephemeral: true,
-                });
+                await replyEphemeral(interaction, "Você não tem permissão para usar este comando.");
+                return;
             }
         }
 
         if (command.cooldown) {
             const now = Date.now();
-            const timestamps = cooldowns.get(command.name) || new Map();
-            const cooldownAmount = (command.cooldown || 0) * 1000;
+            const timestamps = cooldowns.get(command.name) || new Map<string, number>();
+            const cooldownAmount = command.cooldown * 1000;
 
-            if (timestamps.has(interaction.user.id)) {
-                const expirationTime = timestamps.get(interaction.user.id) + cooldownAmount;
-
-                if (now < expirationTime) {
-                    const timeLeft = (expirationTime - now) / 1000;
-                    return interaction.reply({
-                        content: `Por favor, espere ${timeLeft.toFixed(1)} segundo(s) antes de reusar o comando \`${command.name}\`.`,
-                        ephemeral: true,
-                    });
-                }
+            const expirationTime = (timestamps.get(interaction.user.id) ?? 0) + cooldownAmount;
+            if (timestamps.has(interaction.user.id) && now < expirationTime) {
+                const timeLeft = (expirationTime - now) / 1000;
+                await replyEphemeral(
+                    interaction,
+                    `Por favor, espere ${timeLeft.toFixed(1)} segundo(s) antes de reusar o comando \`${command.name}\`.`
+                );
+                return;
             }
 
             timestamps.set(interaction.user.id, now);
@@ -55,26 +61,18 @@ const interactionCreateEvent: EventType = {
         }
 
         if (!command.isActive) {
-            return interaction.reply({
-                content: "Este comando está temporariamente indisponível.",
-                ephemeral: true,
-            });
+            await replyEphemeral(interaction, "Este comando está temporariamente indisponível.");
+            return;
         }
 
         try {
-            if (command.executeInteraction && interaction.isCommand()) {
+            if (command.executeInteraction) {
                 await command.executeInteraction(interaction);
-            } else if (command.executeMessage && interaction.isMessageComponent()) {
-                await command.executeMessage(interaction);
             }
         } catch (error) {
             console.error(error);
-            await interaction.reply({
-                content: "Ocorreu um erro ao executar este comando.",
-                ephemeral: true,
-            });
+            await replyEphemeral(interaction, "Ocorreu um erro ao executar este comando.");
         }
-
     }
 };
 

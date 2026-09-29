@@ -1,5 +1,5 @@
 export interface EventType {
-    name: string
-    execute: (...args: any[]) => void | Promise<void>;
-    once?: boolean
+    name: string;
+    execute: (...args: unknown[]) => void | Promise<void>;
+    once?: boolean;
 }

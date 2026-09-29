@@ -1,43 +1,50 @@
-import { Message, PermissionResolvable } from "discord.js"
-import { CommandType, EventType, typeCommand } from "../../types"
+import { Events, Message, PermissionResolvable } from "discord.js";
+import { BotClient, CommandType, EventType, typeCommand } from "../../types/index.js";
 
-const cooldowns = new Map();
-
+const cooldowns = new Map<string, Map<string, number>>();
 
 const messageCreateEvent: EventType = {
-    name: "messageCreate",
+    name: Events.MessageCreate,
     once: false,
-    execute: async (message) => {
-        if (!message.content.startsWith('!') || message.author.bot) return;
+    execute: async (...args: unknown[]) => {
+        const message = args[0] as Message;
 
-        const args = message.content.slice(1).split(/ +/);
-        const commandName = args.shift()?.toLowerCase();
+        if (!message.content?.startsWith("!") || message.author.bot) return;
 
-        const command: CommandType = message.client.commands.get(commandName);
+        const argsList = message.content.slice(1).split(/ +/);
+        const commandName = argsList.shift()?.toLowerCase();
+        if (!commandName) return;
 
+        const command = (message.client as BotClient).commands.get(commandName) as CommandType | undefined;
         if (!command) return;
 
         if (command.type !== typeCommand.message && command.type !== typeCommand.all) return;
 
         if (command.permissions) {
-            const permissionMissing = command.permissions.filter(p => !message.member.permissions.has(p as PermissionResolvable));
+            if (!message.member) {
+                await message.reply("Este comando só pode ser usado em servidores.");
+                return;
+            }
+
+            const permissionMissing = command.permissions.filter(
+                (p) => !message.member!.permissions.has(p as PermissionResolvable)
+            );
             if (permissionMissing.length) {
-                return message.reply("Você não tem permissão para usar este comando.");
+                await message.reply("Você não tem permissão para usar este comando.");
+                return;
             }
         }
 
         if (command.cooldown) {
             const now = Date.now();
-            const timestamps = cooldowns.get(command.name) || new Map();
-            const cooldownAmount = (command.cooldown || 0) * 1000;
+            const timestamps = cooldowns.get(command.name) || new Map<string, number>();
+            const cooldownAmount = command.cooldown * 1000;
 
-            if (timestamps.has(message.author.id)) {
-                const expirationTime = timestamps.get(message.author.id) + cooldownAmount;
-
-                if (now < expirationTime) {
-                    const timeLeft = (expirationTime - now) / 1000;
-                    return message.reply(`Por favor, espere ${timeLeft.toFixed(1)} segundo(s) antes de reusar o comando \`${command.name}\`.`);
-                }
+            const expirationTime = (timestamps.get(message.author.id) ?? 0) + cooldownAmount;
+            if (timestamps.has(message.author.id) && now < expirationTime) {
+                const timeLeft = (expirationTime - now) / 1000;
+                await message.reply(`Por favor, espere ${timeLeft.toFixed(1)} segundo(s) antes de reusar o comando \`${command.name}\`.`);
+                return;
             }
 
             timestamps.set(message.author.id, now);
@@ -51,9 +58,9 @@ const messageCreateEvent: EventType = {
             }
         } catch (error) {
             console.error(error);
-            await message.reply('Ocorreu um erro ao executar este comando.');
+            await message.reply("Ocorreu um erro ao executar este comando.");
         }
     }
-}
+};
 
-export default messageCreateEvent
+export default messageCreateEvent;

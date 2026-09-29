@@ -4,7 +4,7 @@ Uma base para criação de bots Discord em TypeScript, totalmente livre e de fá
 
 ## 📋 Pré-requisitos
 
-Este projeto requer **Node.js** e **npm**. Certifique-se de ter ambos instalados antes de prosseguir.
+Este projeto requer **Node.js 22+** e **npm**. Certifique-se de ter ambos instalados antes de prosseguir.
 
 - [Download Node.js e npm](https://nodejs.org/)
 
@@ -39,39 +39,50 @@ Copie o arquivo `.env.example` para criar um novo arquivo `.env`:
 cp .env.example .env
 ```
 
-Edite o arquivo `.env` com as suas configurações específicas (tokens, chaves API, etc.).
-
-Exemplo de variáveis no `.env`:
+Edite o arquivo `.env` com as suas configurações:
 
 ```plaintext
 DISCORD_TOKEN=SEU_TOKEN_AQUI
 CLIENT_ID=SEU_CLIENT_ID_AQUI
+# Opcional: registra slash commands só neste servidor (útil em desenvolvimento)
+# GUILD_ID=SEU_GUILD_ID_AQUI
 ```
+
+### Intents privilegiadas
+
+No [Discord Developer Portal](https://discord.com/developers/applications), em **Bot → Privileged Gateway Intents**, ative **Message Content Intent**. O template usa `Guilds`, `GuildMessages` e `MessageContent`.
 
 ### Inicie o Bot
 
-Para iniciar o bot em modo de desenvolvimento, use:
+Desenvolvimento (com `tsx`):
 
 ```bash
-npm run start:dev
+npm run dev
+```
+
+Produção (compila e inicia):
+
+```bash
+npm run build
+npm start
 ```
 
 ## 🖥 Uso
 
 ### Criação de Comandos
 
-Para criar novos comandos para o bot, você pode seguir o exemplo fornecido em `src/examples/commandExample.ts`. Este arquivo contém um template básico para a estruturação de comandos.
+Para criar novos comandos, siga o exemplo em `src/example/commandExample.ts` e coloque o arquivo em `src/commands/` (ou em uma subpasta).
 
 ```typescript
-// Exemplo simplificado da estrutura de um comando
-import { typeCommand } from "../types";
-import createCommand from "../../config/commands/createCommand";
-import { categories } from "../../config/categories/category";
+import { ChatInputCommandInteraction, Message } from "discord.js";
+import { typeCommand } from "../types/index.js";
+import createCommand from "../config/commands/createCommand.js";
+import { categories } from "../config/categories/category.js";
 
 const commandExample = createCommand({
     name: "comando",
-    description: "Descricão do comando",
-    category: categories.category,
+    description: "Descrição do comando",
+    category: categories.Utilitarios,
     usage: {
         prefix: "!comando [message]",
         slash: "/comando [message]",
@@ -79,30 +90,31 @@ const commandExample = createCommand({
     isActive: true,
     cooldown: 0,
     type: typeCommand.all,
-    slashCommandOptions?: [],
     permissions: [],
-    execute: async (args: Message | CommandInteraction) =>{
-        // codigo do comando
-     }
-})
+    execute: async (args: Message | ChatInputCommandInteraction) => {
+        // código do comando
+    }
+});
+
+export default commandExample;
 ```
 
 ### Criação de Eventos
 
-Para integrar novos eventos ao bot, siga o exemplo em `src/events/eventExample.ts`.
+Para integrar novos eventos, siga o exemplo em `src/example/eventExample.ts` e coloque o arquivo em `src/events/`.
 
 ```typescript
-// Exemplo de implementação de um evento
-import { Events } from "discord.js";
-import { EventType } from "../types";
+import { Client, Events } from "discord.js";
+import { EventType } from "../types/index.js";
 
 const EventExample: EventType = {
     name: Events.ClientReady,
     once: true,
-    execute: async (client) => {
-        console.log(`O bot ${client.user.tag} foi iniciado!`);
+    execute: async (...args: unknown[]) => {
+        const client = args[0] as Client;
+        console.log(`O bot ${client.user?.tag} foi iniciado!`);
     }
-}
+};
 
 export default EventExample;
 ```

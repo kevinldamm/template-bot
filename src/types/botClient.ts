@@ -1,6 +1,5 @@
 import { Client, Collection } from "discord.js";
-import { CommandType } from "./commandType";
-import { EventType } from "./eventType";
+import { CommandType } from "./commandType.js";
 
 export interface BotClient extends Client {
     commands: Collection<string, CommandType>;

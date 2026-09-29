@@ -1,7 +1,7 @@
-import { ApplicationCommandOptionType, CommandInteraction, Message, PermissionFlagsBits } from "discord.js";
-import { typeCommand } from "../../types";
-import createCommand from "../../config/commands/createCommand";
-import { categories } from "../../config/categories/category";
+import { ApplicationCommandOptionType, ChatInputCommandInteraction, Message } from "discord.js";
+import { typeCommand } from "../../types/index.js";
+import createCommand from "../../config/commands/createCommand.js";
+import { categories } from "../../config/categories/category.js";
 
 const pingCommand = createCommand({
     name: "ping",
@@ -23,20 +23,16 @@ const pingCommand = createCommand({
         }
     ],
 
-    execute: async (args: Message | CommandInteraction) => {
+    execute: async (args: Message | ChatInputCommandInteraction) => {
         let messageReply = "";
 
         if (args instanceof Message) {
-            const message = args.content.split(/\s+/).slice(1).join(' ');
-            
-        
+            const message = args.content.split(/\s+/).slice(1).join(" ");
             if (message) {
                 messageReply += `${message} `;
             }
-
-        } else if (args instanceof CommandInteraction) {
-            const message = args.options.get("message")?.value as string;
-            
+        } else {
+            const message = args.options.getString("message");
             if (message) {
                 messageReply += `${message} `;
             }

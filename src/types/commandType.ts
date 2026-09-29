@@ -1,4 +1,4 @@
-import { ApplicationCommandOptionData, CommandInteraction, Message, PermissionResolvable } from "discord.js";
+import { ApplicationCommandOptionData, ChatInputCommandInteraction, Message, PermissionResolvable } from "discord.js";
 
 export enum typeCommand {
     message = "message",
@@ -29,5 +29,5 @@ export interface CommandType {
     permissions?: PermissionResolvable[];
     slashCommandOptions?: ApplicationCommandOptionData[];
     executeMessage?: (args: Message) => void | Promise<void>;
-    executeInteraction?: (args: CommandInteraction) => void | Promise<void>;
+    executeInteraction?: (args: ChatInputCommandInteraction) => void | Promise<void>;
 }
