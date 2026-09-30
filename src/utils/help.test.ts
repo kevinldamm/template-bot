@@ -16,7 +16,7 @@ const mod = { name: "Moderação", emoji: "🔒", description: "Moderar" };
 const util = { name: "Utilitários", emoji: "🛠️", description: "Úteis" };
 
 const commands = [
-    fakeCommand({ name: "ping", category: util }),
+    fakeCommand({ name: "ping", category: util, aliases: ["latencia"] }),
     fakeCommand({
         name: "clear",
         category: mod,
@@ -44,6 +44,7 @@ describe("help", () => {
     it("encontra comandos com ou sem prefixo/barra", () => {
         expect(findCommand(commands, "/PING", "!")?.name).toBe("ping");
         expect(findCommand(commands, "?clear", "?")?.name).toBe("clear");
+        expect(findCommand(commands, "!latencia", "!")?.name).toBe("ping");
         expect(findCommand(commands, "nada", "!")).toBeUndefined();
     });
 
@@ -58,6 +59,9 @@ describe("help", () => {
         const detail = buildCommandEmbed(commands[1], "?").toJSON();
         expect(detail.fields?.find((f) => f.name === "Uso")?.value).toContain("`?clear`");
         expect(detail.fields?.find((f) => f.name === "Permissões")?.value).toBe("`ManageMessages`");
+
+        const ping = buildCommandEmbed(commands[0], "!").toJSON();
+        expect(ping.fields?.find((f) => f.name === "Aliases")?.value).toBe("`!latencia`");
 
         const menu = buildCategoryMenu(groups, "42").toJSON();
         expect(menu.components[0]).toMatchObject({ custom_id: "help:42" });
