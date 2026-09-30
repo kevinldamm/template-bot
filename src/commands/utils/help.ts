@@ -14,6 +14,7 @@ import {
 
 export default createCommand({
     name: "help",
+    aliases: ["ajuda"],
     description: "Lista os comandos do bot ou mostra os detalhes de um comando",
     category: categories.Utilitarios,
     type: typeCommand.all,
@@ -32,7 +33,11 @@ export default createCommand({
     autocomplete: async (interaction, client) => {
         const typed = interaction.options.getFocused().toLowerCase();
         const matches = listCommands(client)
-            .filter((command) => command.name.includes(typed))
+            .filter(
+                (command) =>
+                    command.name.includes(typed) ||
+                    (command.aliases?.some((alias) => alias.includes(typed)) ?? false),
+            )
             .slice(0, 25)
             .map((command) => ({
                 name: `${command.name} — ${command.description}`.slice(0, 100),
