@@ -104,6 +104,19 @@ export function validateCommand(command: unknown): string | null {
     }
     if (typeof isActive !== "boolean") return "`isActive` deve ser booleano";
 
+    if (command.aliases !== undefined) {
+        if (!Array.isArray(command.aliases)) return "`aliases` deve ser uma lista";
+        const seen = new Set<string>();
+        for (const alias of command.aliases) {
+            if (typeof alias !== "string" || !NAME_PATTERN.test(alias)) {
+                return "`aliases` deve conter nomes com 1-32 caracteres minúsculos (letras, números, _ ou -)";
+            }
+            if (alias === name) return "`aliases` não pode repetir o `name` do comando";
+            if (seen.has(alias)) return `\`aliases\`: alias duplicado "${alias}"`;
+            seen.add(alias);
+        }
+    }
+
     const usesSlash = type === typeCommand.slash || type === typeCommand.all;
     const usesPrefix = type === typeCommand.message || type === typeCommand.all;
 
