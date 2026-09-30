@@ -6,6 +6,7 @@ import { EMBED_COLORS } from "../../config/constants";
 
 export default createCommand({
     name: "serverinfo",
+    aliases: ["servidor"],
     description: "Mostra informações sobre o servidor",
     category: categories.Informacao,
     type: typeCommand.all,
