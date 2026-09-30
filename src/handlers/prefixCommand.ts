@@ -3,6 +3,7 @@ import { BotClient, typeCommand } from "../types";
 import { checkCommandGuards } from "../config/commands/guards";
 import { replyError } from "../config/commands/context";
 import { logger } from "../config/logger";
+import { unknownPrefixCommandMessage, uniquePrefixCommands } from "../utils/suggestCommand";
 
 /** Separa o nome do comando e os argumentos de uma mensagem com prefixo (ou `null`). */
 export function parsePrefixCommand(
@@ -25,7 +26,18 @@ export async function handlePrefixCommand(
     if (!parsed) return;
 
     const command = client.commands.get(parsed.name);
-    if (!command?.executeMessage) return;
+    if (!command?.executeMessage) {
+        const known = uniquePrefixCommands(client.commands.values());
+        await message.reply(
+            unknownPrefixCommandMessage(
+                parsed.name,
+                prefix,
+                known,
+                known.some((c) => c.name === "help"),
+            ),
+        );
+        return;
+    }
     if (command.type !== typeCommand.message && command.type !== typeCommand.all) return;
 
     const guardError = checkCommandGuards({
