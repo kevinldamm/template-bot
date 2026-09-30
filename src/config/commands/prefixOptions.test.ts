@@ -103,6 +103,17 @@ describe("resolvePrefixOptions", () => {
         ]);
     });
 
+    it("anexos não ocupam posição no prefixo", () => {
+        const withFile: ApplicationCommandOptionData[] = [
+            { name: "busca", description: "d", type: T.String },
+            { name: "arquivo", description: "d", type: T.Attachment },
+        ];
+        const result = resolvePrefixOptions(withFile, ["lo-fi", "hip", "hop"]);
+        expect(result.errors).toEqual([]);
+        expect(result.values.get("busca")).toBe("lo-fi hip hop");
+        expect(result.definitions.map((o) => o.name)).toEqual(["busca"]);
+    });
+
     it("não junta o restante quando a última opção não é texto", () => {
         const numbers: ApplicationCommandOptionData[] = [
             { name: "a", description: "d", type: T.Integer },
