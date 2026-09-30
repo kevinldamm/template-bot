@@ -162,6 +162,8 @@ export function resolvePrefixOptions(
         level = childOptions(chosen);
     }
 
+    // Anexos não são digitados no prefixo (vêm da mensagem); não ocupam posição.
+    level = level.filter((option) => option.type !== ApplicationCommandOptionType.Attachment);
     result.definitions = level;
 
     level.forEach((option, index) => {
