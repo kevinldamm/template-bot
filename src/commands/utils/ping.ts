@@ -5,6 +5,7 @@ import { categories } from "../../config/categories/category";
 
 const pingCommand = createCommand({
     name: "ping",
+    aliases: ["latencia"],
     description: "Mostra o ping do bot",
     category: categories.Utilitarios,
     isActive: true,
