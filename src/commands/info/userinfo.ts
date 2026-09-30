@@ -11,6 +11,7 @@ const fullDate = (date: Date): string =>
 
 export default createCommand({
     name: "userinfo",
+    aliases: ["usuario"],
     description: "Mostra informações sobre um usuário",
     category: categories.Informacao,
     type: typeCommand.all,
