@@ -43,7 +43,9 @@ export function findCommand(
     let name = query.trim().toLowerCase();
     if (name.startsWith("/")) name = name.slice(1);
     else if (name.startsWith(prefix)) name = name.slice(prefix.length);
-    return commands.find((command) => command.name === name);
+    return commands.find(
+        (command) => command.name === name || (command.aliases?.includes(name) ?? false),
+    );
 }
 
 /** Lista de nomes, respeitando o limite de 1024 caracteres de um campo de embed. */
@@ -96,6 +98,13 @@ export function buildCommandEmbed(command: CommandType, prefix: string): EmbedBu
             { name: "Categoria", value: command.category.name, inline: true },
         );
 
+    if (command.aliases?.length && command.type !== typeCommand.slash) {
+        embed.addFields({
+            name: "Aliases",
+            value: command.aliases.map((alias) => `\`${prefix}${alias}\``).join(", "),
+            inline: true,
+        });
+    }
     if (command.cooldown) {
         embed.addFields({ name: "Cooldown", value: `${command.cooldown}s`, inline: true });
     }
