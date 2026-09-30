@@ -27,8 +27,8 @@ const loadCommands = async (client: BotClient): Promise<void> => {
             const usesPrefix = valid.type === typeCommand.message || valid.type === typeCommand.all;
             const usesSlash = valid.type === typeCommand.slash || valid.type === typeCommand.all;
 
-            if (usesPrefix) register(client.commands, valid, relative);
-            if (usesSlash) register(client.slashCommands, valid, relative);
+            if (usesPrefix) registerPrefix(client.commands, valid, relative);
+            if (usesSlash) register(client.slashCommands, valid.name, valid, relative);
         } catch (error) {
             logger.error(`Falha ao carregar o comando ${relative}`, error);
         }
@@ -39,11 +39,28 @@ const loadCommands = async (client: BotClient): Promise<void> => {
     );
 };
 
-function register(collection: BotClient["commands"], command: CommandType, file: string): void {
-    if (collection.has(command.name)) {
-        logger.warn(`Comando duplicado "${command.name}" em ${file}: sobrescrevendo o anterior`);
+/** Registra o nome canônico e os aliases (só no mapa de prefixo). */
+function registerPrefix(
+    collection: BotClient["commands"],
+    command: CommandType,
+    file: string,
+): void {
+    register(collection, command.name, command, file);
+    for (const alias of command.aliases ?? []) {
+        register(collection, alias, command, file);
     }
-    collection.set(command.name, command);
+}
+
+function register(
+    collection: BotClient["commands"],
+    key: string,
+    command: CommandType,
+    file: string,
+): void {
+    if (collection.has(key)) {
+        logger.warn(`Comando duplicado "${key}" em ${file}: sobrescrevendo o anterior`);
+    }
+    collection.set(key, command);
 }
 
 export default loadCommands;
