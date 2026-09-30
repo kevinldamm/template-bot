@@ -35,6 +35,23 @@ describe("getUsage", () => {
         expect(getUsage({ name: "ping" }, "!").prefix).toBe("!ping");
     });
 
+    it("omite anexo do uso de prefixo e mantém no slash", () => {
+        const usage = getUsage(
+            {
+                name: "enviar",
+                slashCommandOptions: [
+                    { name: "legenda", description: "d", type: T.String },
+                    { name: "arquivo", description: "d", type: T.Attachment },
+                ],
+            },
+            "!",
+        );
+        expect(usage).toEqual({
+            prefix: "!enviar [legenda]",
+            slash: "/enviar [legenda] [arquivo]",
+        });
+    });
+
     it("respeita um usage definido manualmente", () => {
         const usage = { prefix: "!x algo", slash: "/x algo" };
         expect(getUsage({ name: "x", usage }, "!")).toBe(usage);
