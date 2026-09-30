@@ -105,6 +105,66 @@ describe("handlePrefixCommand", () => {
             expect.objectContaining({ content: expect.stringMatching(/servidores/) }),
         );
     });
+
+    it("resolve aliases de prefixo para o comando canônico", async () => {
+        const client = fakeClient();
+        const ping = fakeCommand({ name: "ping", aliases: ["latencia"] });
+        const clear = fakeCommand({ name: "clear", aliases: ["limpar", "apagar"] });
+        client.commands.set("ping", ping);
+        client.commands.set("latencia", ping);
+        client.commands.set("clear", clear);
+        client.commands.set("limpar", clear);
+        client.commands.set("apagar", clear);
+
+        const pingMsg = message("!latencia tudo certo");
+        await handlePrefixCommand(pingMsg, client, "!");
+        expect(ping.executeMessage).toHaveBeenCalledWith(pingMsg, ["tudo", "certo"]);
+
+        for (const alias of ["limpar", "apagar", "clear"] as const) {
+            const stop = fakeCommand({ name: "clear", aliases: ["limpar", "apagar"] });
+            client.commands.set("clear", stop);
+            client.commands.set("limpar", stop);
+            client.commands.set("apagar", stop);
+            const msg = message(`!${alias}`);
+            await handlePrefixCommand(msg, client, "!");
+            expect(stop.executeMessage).toHaveBeenCalledWith(msg, []);
+        }
+    });
+
+    it("sugere o comando mais próximo quando o nome não existe", async () => {
+        const client = fakeClient();
+        const clear = fakeCommand({ name: "clear", aliases: ["limpar", "apagar"] });
+        const help = fakeCommand({ name: "help" });
+        client.commands.set("clear", clear);
+        client.commands.set("limpar", clear);
+        client.commands.set("apagar", clear);
+        client.commands.set("help", help);
+
+        const msg = message("!limparr");
+        await handlePrefixCommand(msg, client, "!");
+        expect(clear.executeMessage).not.toHaveBeenCalled();
+        expect(msg.reply).toHaveBeenCalledWith("Não conheço `!limparr`. Você quis dizer `!clear`?");
+    });
+
+    it("não sugere match ruim e aponta o help", async () => {
+        const client = fakeClient();
+        client.commands.set("ping", fakeCommand({ name: "ping" }));
+        client.commands.set("help", fakeCommand({ name: "help" }));
+
+        const msg = message("!zzzzz");
+        await handlePrefixCommand(msg, client, "!");
+        expect(msg.reply).toHaveBeenCalledWith(
+            "Não conheço `!zzzzz`. Use `!help` para ver os comandos.",
+        );
+    });
+
+    it("não responde a mensagens sem prefixo", async () => {
+        const client = fakeClient();
+        client.commands.set("ping", fakeCommand({ name: "ping" }));
+        const msg = message("ping algo");
+        await handlePrefixCommand(msg, client, "!");
+        expect(msg.reply).not.toHaveBeenCalled();
+    });
 });
 
 describe("handleChatInputCommand", () => {
