@@ -17,6 +17,7 @@ const MAX_CLEAR_AMOUNT = 1000;
 
 const DeleteMessages = createCommand({
     name: "clear",
+    aliases: ["limpar"],
     description: "Limpar mensagens",
     category: categories.Moderacao,
     type: typeCommand.all,
