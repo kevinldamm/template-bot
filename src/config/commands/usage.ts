@@ -24,10 +24,15 @@ export function getUsage(
 ): usageType {
     if (command.usage) return command.usage;
 
-    const args = formatOptions(command.slashCommandOptions ?? []);
-    const suffix = args ? ` ${args}` : "";
+    const options = command.slashCommandOptions ?? [];
+    // Anexo não é argumento digitado no prefixo; no slash ele continua na linha de uso.
+    const prefixOptions = options.filter(
+        (option) => option.type !== ApplicationCommandOptionType.Attachment,
+    );
+    const slashArgs = formatOptions(options);
+    const prefixArgs = formatOptions(prefixOptions);
     return {
-        prefix: `${prefix}${command.name}${suffix}`,
-        slash: `/${command.name}${suffix}`,
+        prefix: `${prefix}${command.name}${prefixArgs ? ` ${prefixArgs}` : ""}`,
+        slash: `/${command.name}${slashArgs ? ` ${slashArgs}` : ""}`,
     };
 }
