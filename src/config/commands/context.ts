@@ -110,6 +110,8 @@ export function buildMessageContext(
             const id = parsed(name, (v) => parseSnowflake(v, "role"));
             return id && guild ? ignoreNotFound(guild.roles.fetch(id)) : null;
         },
+        // Anexos não são digitados: no prefixo, vêm da própria mensagem.
+        getAttachment: () => message.attachments?.first() ?? null,
         defer: async () => {
             if ("sendTyping" in message.channel) await message.channel.sendTyping();
         },
@@ -151,6 +153,7 @@ export function buildInteractionContext(interaction: ChatInputCommandInteraction
             const role = options.getRole(name);
             return role && guild ? ignoreNotFound(guild.roles.fetch(role.id)) : null;
         },
+        getAttachment: (name) => options.getAttachment(name),
         defer: async ({ ephemeral } = {}) => {
             if (interaction.deferred || interaction.replied) return;
             await interaction.deferReply({ flags: ephemeral ? MessageFlags.Ephemeral : undefined });
