@@ -1,5 +1,6 @@
 import {
     ApplicationCommandOptionData,
+    Attachment,
     AutocompleteInteraction,
     BaseMessageOptions,
     Channel,
@@ -74,6 +75,8 @@ export interface CommandContext {
     getChannel(name: string): Promise<Channel | null>;
     /** Aceita menção (`@cargo`) ou ID no prefixo. */
     getRole(name: string): Promise<Role | null>;
+    /** Arquivo enviado. No prefixo, é o primeiro anexo da mensagem. */
+    getAttachment(name: string): Attachment | null;
 
     /**
      * Avisa que a resposta vai demorar (o Discord exige resposta em até 3s no slash).
@@ -88,6 +91,11 @@ export interface CommandType {
     name: string;
     description: string;
     category: category;
+    /**
+     * Nomes alternativos só para comandos de prefixo (`!latencia` → `ping`).
+     * Não são registrados como slash commands no Discord.
+     */
+    aliases?: string[];
     /** Texto de uso exibido no `/help`. Se omitido, é gerado a partir das opções. */
     usage?: usageType;
     isActive: boolean;
