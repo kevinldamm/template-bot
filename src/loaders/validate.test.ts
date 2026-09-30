@@ -49,6 +49,16 @@ describe("validateCommand", () => {
         expect(validateCommand({ ...valid, cooldown: -1 })).toMatch(/cooldown/);
         expect(validateCommand({ ...valid, cooldown: 5 })).toBeNull();
     });
+
+    it("valida aliases", () => {
+        expect(validateCommand({ ...valid, aliases: ["latencia"] })).toBeNull();
+        expect(validateCommand({ ...valid, aliases: ["Ping"] })).toMatch(/aliases/);
+        expect(validateCommand({ ...valid, aliases: ["ping"] })).toMatch(/aliases/);
+        expect(validateCommand({ ...valid, aliases: ["latencia", "latencia"] })).toMatch(
+            /duplicado/,
+        );
+        expect(validateCommand({ ...valid, aliases: "latencia" })).toMatch(/lista/);
+    });
 });
 
 describe("validateEvent", () => {
