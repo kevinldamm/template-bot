@@ -1,6 +1,6 @@
 # 🤖 Template de Bot em TypeScript
 
-Base para criação de bots Discord em TypeScript com [discord.js](https://discord.js.org) v14: comandos que funcionam como **prefixo** (`!ping`) e **slash** (`/ping`) a partir de uma única definição, botões/menus/modais, `/help` automático, carregamento automático de comandos/eventos/componentes, validação de configuração e de argumentos, cooldowns e checagem de permissões.
+Base para criação de bots Discord em TypeScript com [discord.js](https://discord.js.org) v14: comandos que funcionam como **prefixo** (`!ping`) e **slash** (`/ping`) a partir de uma única definição, aliases só no prefixo, sugestão quando o comando não existe, anexos, botões/menus/modais, `/help` automático, carregamento automático de comandos/eventos/componentes, validação de configuração e de argumentos, cooldowns e checagem de permissões.
 
 ## 📋 Pré-requisitos
 
@@ -49,16 +49,16 @@ Também há um `Dockerfile` (`docker build -t meu-bot . && docker run --env-file
 
 ## 🧩 Comandos incluídos
 
-| Comando       | Categoria   | Descrição                                                                                  |
-| ------------- | ----------- | ------------------------------------------------------------------------------------------ |
-| `/help`       | Utilitários | Lista os comandos por categoria (menu de seleção) ou detalha um comando (com autocomplete) |
-| `/ping`       | Utilitários | Mostra a latência do bot                                                                   |
-| `/userinfo`   | Informação  | Dados de um usuário: conta, entrada no servidor, cargos                                    |
-| `/serverinfo` | Informação  | Dados do servidor: dono, membros, canais, cargos, impulsos                                 |
-| `/clear`      | Moderação   | Apaga de 1 a 1000 mensagens                                                                |
-| `/kick`       | Moderação   | Expulsa um membro, com botões de confirmação                                               |
+| Comando       | Categoria   | Descrição                                                                                 |
+| ------------- | ----------- | ----------------------------------------------------------------------------------------- |
+| `/help`       | Utilitários | Lista os comandos ou detalha um (autocomplete). Alias de prefixo: `!ajuda`                |
+| `/ping`       | Utilitários | Mostra a latência do bot. Alias de prefixo: `!latencia`                                   |
+| `/userinfo`   | Informação  | Dados de um usuário: conta, entrada no servidor, cargos. Alias de prefixo: `!usuario`     |
+| `/serverinfo` | Informação  | Dados do servidor: dono, membros, canais, cargos, impulsos. Alias de prefixo: `!servidor` |
+| `/clear`      | Moderação   | Apaga de 1 a 1000 mensagens. Alias de prefixo: `!limpar`                                  |
+| `/kick`       | Moderação   | Expulsa um membro, com botões de confirmação. Alias de prefixo: `!expulsar`               |
 
-Todos funcionam também com prefixo (`!help`, `!kick @usuário motivo`...).
+Todos funcionam também com prefixo (`!help`, `!kick @usuário motivo`...). Os aliases valem só no prefixo: `!latencia` chama o `ping`, mas `/latencia` não existe. Um comando de prefixo desconhecido responde com o nome mais próximo (`!pinng` → `!ping`) ou aponta o `!help`.
 
 ## 🗂 Estrutura
 
@@ -76,7 +76,7 @@ src/
     commands/              createCommand, contexto, guards, leitura de opções no prefixo, registro
     components/            customId (montar/ler ids de componentes)
   loaders/                 carregamento e validação de comandos, eventos e componentes
-  utils/                   lógica compartilhada (help, moderação)
+  utils/                   lógica compartilhada (help, moderação, sugestão de comando)
   types/                   tipos compartilhados
 scripts/                   gerador de arquivos (npm run new:*)
 ```
@@ -98,6 +98,7 @@ export default createCommand({
     description: "Repete a mensagem",
     category: categories.Utilitarios,
     type: typeCommand.all, // .message (prefixo), .slash ou .all
+    aliases: ["ecoar"], // só prefixo (`!ecoar`); não vira slash command
     isActive: true,
     cooldown: 3, // segundos, por usuário
     permissions: [PermissionFlagsBits.ManageMessages], // do usuário (opcional)
@@ -130,6 +131,7 @@ O texto de uso (`!eco <mensagem>`, exibido no `/help` e nos erros) é gerado a p
 | `ctx.has(nome)`                                                        | Se a opção foi informada                                                                     |
 | `ctx.getString/getInteger/getNumber/getBoolean(nome)`                  | Valor da opção (ou `null`)                                                                   |
 | `await ctx.getUser/getMember/getChannel/getRole(nome)`                 | Entidade da opção; no prefixo aceita menção (`@usuário`, `#canal`, `@cargo`) ou ID           |
+| `ctx.getAttachment(nome)`                                              | Arquivo enviado. No slash, a opção `Attachment`; no prefixo, o primeiro anexo da mensagem    |
 | `ctx.getSubcommand()`, `ctx.getSubcommandGroup()`                      | Subcomando escolhido                                                                         |
 | `await ctx.defer({ ephemeral? })`                                      | Para comandos lentos: o Discord exige resposta em até 3s (no prefixo, mostra "digitando...") |
 | `await ctx.reply(texto \| { content, embeds, components, ephemeral })` | Responde e devolve a mensagem enviada. `ephemeral` só vale no slash                          |
@@ -138,8 +140,10 @@ O texto de uso (`!eco <mensagem>`, exibido no `/help` e nos erros) é gerado a p
 #### Opções no prefixo
 
 - As opções são **posicionais**, na ordem de `slashCommandOptions`. Se a última for de texto, ela recebe o restante da mensagem (`!kick @fulano spam no chat`).
+- Opções do tipo `Attachment` não ocupam posição: no prefixo o arquivo vem anexado à mensagem (`ctx.getAttachment`).
 - São validadas como o Discord faz no slash: obrigatórias, tipo, `minValue`/`maxValue`, `minLength`/`maxLength` e `choices`. Se algo estiver errado, o comando nem roda e o usuário recebe o erro e o uso correto.
 - Subcomandos são o primeiro argumento (`!config prefixo ?`); grupos, os dois primeiros.
+- `aliases` são nomes extras só do prefixo. O `/help` encontra o comando pelo alias e lista esses nomes no detalhe. Um nome parecido e inexistente recebe uma sugestão (`Não conheço !pinng. Você quis dizer !ping?`).
 
 #### Subcomandos e autocomplete
 
