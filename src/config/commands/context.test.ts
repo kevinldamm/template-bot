@@ -123,6 +123,14 @@ describe("buildMessageContext", () => {
         expect(await ctx.getMember("u")).toBeNull();
     });
 
+    it("usa o primeiro anexo da mensagem", () => {
+        const { message } = setup();
+        expect(buildMessageContext(message, [], resolved({})).getAttachment("arquivo")).toBeNull();
+        const file = { url: "https://cdn/a.txt" };
+        Object.defineProperty(message, "attachments", { value: { first: () => file } });
+        expect(buildMessageContext(message, [], resolved({})).getAttachment("arquivo")).toBe(file);
+    });
+
     it("reply ignora ephemeral e defer mostra 'digitando'", async () => {
         const { message, reply, channel } = setup();
         const ctx = buildMessageContext(message, [], resolved({}));
@@ -143,6 +151,7 @@ describe("buildInteractionContext", () => {
             getUser: vi.fn(() => user),
             getSubcommand: vi.fn(() => "sub"),
             getSubcommandGroup: vi.fn(() => null),
+            getAttachment: vi.fn(() => ({ url: "https://cdn/a.txt" })),
         };
         const guild = { members: { fetch: vi.fn(async () => ({ id: ID, member: true })) } };
         const interaction = fakeInteraction({ options, guild, client: {} });
@@ -156,6 +165,7 @@ describe("buildInteractionContext", () => {
         expect(ctx.getSubcommand()).toBe("sub");
         expect(await ctx.getUser("u")).toBe(user);
         expect(await ctx.getMember("u")).toEqual({ id: ID, member: true });
+        expect(ctx.getAttachment("arquivo")).toEqual({ url: "https://cdn/a.txt" });
 
         await ctx.defer({ ephemeral: true });
         expect(interaction.deferReply).toHaveBeenCalledWith({ flags: MessageFlags.Ephemeral });
