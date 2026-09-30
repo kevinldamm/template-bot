@@ -7,6 +7,7 @@ import { typeCommand } from "../types";
 
 const commandExample = createCommand({
     name: "example", // 1-32 caracteres minúsculos (letras, números, _ ou -)
+    aliases: ["exemplo"], // só prefixo (`!exemplo`); não vira slash command
     description: "Comando de exemplo", // até 100 caracteres
     category: categories.Utilitarios,
     // typeCommand.message = só prefixo | typeCommand.slash = só slash | typeCommand.all = ambos
