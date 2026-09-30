@@ -74,6 +74,7 @@ import { categories } from "${importFrom(file, "config/categories/category")}";
 
 export default createCommand({
     name: "${name}",
+    // aliases: ["atalho"], // só no prefixo; não registra slash command
     description: "TODO: descreva o comando",
     category: categories.${category},
     type: typeCommand.all,
