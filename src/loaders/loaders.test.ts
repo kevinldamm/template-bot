@@ -5,14 +5,21 @@ import loadComponents from "./loadComponents";
 import loadEvents from "./loadEvents";
 
 const ALL_COMMANDS = ["clear", "help", "kick", "ping", "serverinfo", "userinfo"];
+const PREFIX_ALIASES = ["ajuda", "expulsar", "latencia", "limpar", "servidor", "usuario"];
 
 describe("loaders (comandos e eventos reais do projeto)", () => {
     it("carrega todos os comandos em prefixo e slash", async () => {
         const client = fakeClient();
         await loadCommands(client);
 
-        expect([...client.commands.keys()].sort()).toEqual(ALL_COMMANDS);
-        expect([...client.slashCommands.keys()].sort()).toEqual(ALL_COMMANDS);
+        const prefixKeys = [...client.commands.keys()].sort();
+        const slashKeys = [...client.slashCommands.keys()].sort();
+
+        expect(slashKeys).toEqual(ALL_COMMANDS);
+        expect(prefixKeys).toEqual([...ALL_COMMANDS, ...PREFIX_ALIASES].sort());
+        expect(client.commands.get("latencia")?.name).toBe("ping");
+        expect(client.commands.get("limpar")?.name).toBe("clear");
+        expect(client.commands.get("ajuda")?.name).toBe("help");
     });
 
     it("carrega os componentes", async () => {
