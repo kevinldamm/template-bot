@@ -6,6 +6,7 @@ import { buildKickConfirmation, checkKickable } from "../../utils/moderation";
 
 export default createCommand({
     name: "kick",
+    aliases: ["expulsar"],
     description: "Expulsa um membro do servidor (pede confirmação)",
     category: categories.Moderacao,
     type: typeCommand.all,
